@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Goals</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="content" style="padding:0; box-sizing:border-box; height:100%;">
+    <div class="container goals-container" style="border-radius:0; box-shadow:none; background:#121212;">
+      <div id="goalListView" class="goal-list-view">
+        <div class="goal-header" style="display:flex; align-items:center; justify-content:space-between; gap:8px;">
+          <h2 style="margin:0;">Goals</h2>
+        </div>
+        <div class="goal-body">
+          <div class="goal-list-wrap">
+            <ul id="goalList" class="goal-list"></ul>
+          </div>
+        </div>
+        <div class="task-controls goal-controls">
+          <input type="text" id="goalInput" placeholder="Enter goal or JSON array">
+          <button id="addGoalBtn">Add Goal</button>
+        </div>
+      </div>
+
+      <div id="goalDetailView" class="goal-detail-view hidden">
+        <div class="goal-header goal-detail-header">
+          <button id="backToGoalsBtn" class="link-btn" type="button">Back to goals</button>
+          <div id="goalDetailTitle">Select a goal to see tasks</div>
+        </div>
+        <div class="goal-body">
+          <div class="goal-tasks-wrap goal-detail">
+            <ul id="goalTaskList"></ul>
+          </div>
+        </div>
+        <div class="task-controls goal-task-controls">
+          <input type="text" id="goalTaskInput" placeholder="Enter task">
+          <button id="addGoalTaskBtn">Add Task</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const GOALS_KEY = 'voiled_goals_v1';
+      const input = document.getElementById('goalInput');
+      const addBtn = document.getElementById('addGoalBtn');
+      const list = document.getElementById('goalList');
+      const listView = document.getElementById('goalListView');
+      const detailView = document.getElementById('goalDetailView');
+      const backBtn = document.getElementById('backToGoalsBtn');
+      const taskInput = document.getElementById('goalTaskInput');
+      const taskBtn = document.getElementById('addGoalTaskBtn');
+      const taskList = document.getElementById('goalTaskList');
+      const title = document.getElementById('goalDetailTitle');
+      const makeId = (prefix = 'id') => `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+
+      function publishNavActions() {
+        try { window.parent?.postMessage({ type:'nav-actions', actions: [] }, '*'); } catch {}
+      }
+
+      function saveGoals(data) {
+        localStorage.setItem(GOALS_KEY, JSON.stringify(data));
+      }
+
+      let goals = { items: [], selected: null };
+      function syncWindowGoals() { try { window.goals = goals; } catch {} }
+
+      function persist() { saveGoals(goals); syncWindowGoals(); }
+
+      function normalizeGoal(raw) {
+        const goalId = raw?.id || makeId('g');
+        const tasks = (raw?.tasks || []).map(t => ({
+          id: t?.id || makeId('t'),
+          text: t?.text || '',
+          reserved: !!t?.reserved,
+          completed: !!t?.completed,
+          assignedDate: t?.assignedDate || null
+        }));
+        return { id: goalId, text: raw?.text || '', tasks };
+      }
+
+      function goalStats(goal) {
+        const total = goal.tasks?.length || 0;
+        const reserved = goal.tasks?.filter(t => t.reserved || t.completed).length || 0;
+        const completed = goal.tasks?.filter(t => t.completed).length || 0;
+        const distributed = total > 0 && reserved === total;
+        const progress = total > 0 ? Math.min(100, (Math.max(reserved, completed) / total) * 100) : 0;
+        return { total, reserved, completed, distributed, progress };
+      }
+
+      function renderGoalCardVisual(li, goal) {
+        const badge = li.querySelector('.goal-badge');
+        const fill = li.querySelector('.goal-progress-fill');
+        const stats = goalStats(goal);
+        if (fill) {
+          const total = Math.max(1, stats.total || 1);
+          const reservedPct = Math.min(100, (stats.reserved / total) * 100);
+          const completedPct = Math.min(100, (stats.completed / total) * 100);
+          fill.style.setProperty('--goal-slot-size', `${100 / total}%`);
+          fill.style.setProperty('--goal-completed-pct', `${completedPct}%`);
+          fill.style.setProperty('--goal-reserved-pct', `${reservedPct}%`);
+          fill.style.backgroundImage = `
+            linear-gradient(
+              to right,
+              #4CAF50 0%,
+              #4CAF50 ${completedPct}%,
+              #f39c12 ${completedPct}%,
+              #f39c12 ${reservedPct}%,
+              rgba(255,255,255,0.06) ${reservedPct}%,
+              rgba(255,255,255,0.06) 100%
+            ),
+            repeating-linear-gradient(
+              to right,
+              rgba(255,255,255,0.09),
+              rgba(255,255,255,0.09) 1px,
+              transparent 1px,
+              transparent var(--goal-slot-size, 100%)
+            )`;
+          fill.style.width = '100%';
+        }
+        if (badge) {
+          if (stats.completed && stats.completed === stats.total && stats.total > 0) {
+            badge.textContent = 'Completed';
+          } else if (stats.distributed) {
+            badge.textContent = 'Distributed';
+          } else if (stats.reserved) {
+            badge.textContent = `Reserved ${stats.reserved}/${stats.total || 1}`;
+          } else {
+            badge.textContent = 'Ready';
+          }
+        }
+        li.draggable = !stats.distributed;
+      }
+
+      function renderGoalTasks() {
+        const selectedGoal = goals.items.find(g => g.id === goals.selected) || null;
+        const hasSelection = !!selectedGoal;
+
+        Array.from(list?.children || []).forEach((el) => {
+          el.classList.toggle('selected', el.dataset.goalId === goals.selected);
+          const g = goals.items.find(goal => goal.id === el.dataset.goalId);
+          if (g) renderGoalCardVisual(el, g);
+        });
+
+        listView?.classList.toggle('hidden', !!hasSelection);
+        detailView?.classList.toggle('hidden', !hasSelection);
+
+        if (!hasSelection) {
+          if (title) title.textContent = 'Select a goal to see tasks';
+          taskInput?.setAttribute('disabled','true');
+          taskBtn?.setAttribute('disabled','true');
+          if (taskList) taskList.innerHTML = '';
+          return;
+        }
+        const goal = selectedGoal;
+        if (title) title.textContent = goal.text || 'Goal';
+        taskInput?.removeAttribute('disabled');
+        taskBtn?.removeAttribute('disabled');
+        if (taskList) {
+          taskList.innerHTML = '';
+          (goal.tasks || []).forEach((t, idx) => {
+            const li = document.createElement('li');
+            li.className = 'task';
+            li.dataset.taskId = t.id;
+            li.draggable = !(t.reserved || t.completed);
+            li.innerHTML = `
+              <div class="goal-task-badge ${t.reserved ? 'goal-task-reserved' : ''} ${t.completed ? 'goal-task-completed' : ''}">${t.completed ? 'Completed' : t.reserved ? 'Reserved' : 'Available'}</div>
+              <div class="task-text"><span class="task-label">${t.text || ''}</span></div>
+              <button class="removeBtn">X</button>
+            `;
+            li.querySelector('.removeBtn')?.addEventListener('click', () => {
+              if (t.reserved || t.completed) return;
+              goal.tasks.splice(idx, 1);
+              persist();
+              renderGoalTasks();
+            });
+            if (!(t.reserved || t.completed)) {
+              li.addEventListener('dragstart', (e) => {
+                li.classList.add('dragging');
+                if (e.dataTransfer) {
+                  e.dataTransfer.effectAllowed='copy';
+                  e.dataTransfer.setData('text/plain', t.text || '');
+                  e.dataTransfer.setData('application/x-voiled-goal-task', JSON.stringify({ goalId: goal.id, taskId: t.id, goalText: goal.text || '', text: t.text || '' }));
+                }
+              });
+              li.addEventListener('dragover', (e) => {
+                const dragging = taskList.querySelector('.dragging');
+                if (!dragging || dragging === li) return;
+                e.preventDefault();
+                const rect = li.getBoundingClientRect();
+                const before = (e.clientY - rect.top) < rect.height / 2;
+                if (before) taskList.insertBefore(dragging, li);
+                else taskList.insertBefore(dragging, li.nextSibling);
+              });
+              li.addEventListener('dragend', () => {
+                li.classList.remove('dragging');
+                const orderedIds = Array.from(taskList.children).map(el => el.dataset.taskId);
+                const newTasks = [];
+                orderedIds.forEach(id => {
+                  const match = goal.tasks.find(t => t.id === id);
+                  if (match) newTasks.push(match);
+                });
+                goal.tasks = newTasks;
+                persist();
+              });
+            }
+            taskList.appendChild(li);
+          });
+        }
+      }
+
+      function addGoal(goalInput, tasksInput = []) {
+        const goalObj = normalizeGoal({ ...(typeof goalInput === 'string' ? { text: goalInput } : goalInput), tasks: tasksInput });
+        if (!goalObj.text) return;
+        const li = document.createElement('li');
+        li.className = 'task goal-item';
+        li.draggable = true;
+        li.dataset.goalId = goalObj.id;
+        li.innerHTML = `
+          <div class="goal-progress-fill"></div>
+          <div class="goal-main">
+            <div class="task-text"><span class="goal-text">${goalObj.text}</span></div>
+            <div class="goal-badge">Ready</div>
+          </div>
+          <button class="removeBtn">X</button>
+        `;
+        li.querySelector('.removeBtn')?.addEventListener('click', () => {
+          const removeId = goalObj.id;
+          const idx = Array.from(list.children).indexOf(li);
+          goals.items.splice(idx, 1);
+          if (goals.selected === removeId) goals.selected = null;
+          li.remove();
+          persist();
+          renderGoalTasks();
+        });
+
+        li.addEventListener('dragstart', (e) => {
+          if (!li.draggable) { e.preventDefault(); return; }
+          li.classList.add('dragging');
+          if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain',''); }
+        });
+        li.addEventListener('dragover', (e) => {
+        const dragging = list.querySelector('.dragging');
+        if (!dragging || dragging === li) return;
+        e.preventDefault();
+        const rect = li.getBoundingClientRect();
+        const before = (e.clientY - rect.top) < rect.height / 2;
+        if (before) list.insertBefore(dragging, li);
+        else list.insertBefore(dragging, li.nextSibling);
+      });
+      li.addEventListener('dragend', () => {
+        li.classList.remove('dragging');
+        const orderedIds = Array.from(list.children).map(el => el.dataset.goalId);
+        const newItems = [];
+        orderedIds.forEach(id => {
+          const match = goals.items.find(g => g.id === id);
+          if (match) newItems.push(match);
+        });
+        const prevSelectedId = goals.selected;
+        goals.items = newItems;
+        if (prevSelectedId && goals.items.find(g => g.id === prevSelectedId)) {
+          goals.selected = prevSelectedId;
+        } else {
+          goals.selected = null;
+        }
+        persist();
+        renderGoalTasks();
+      });
+
+        li.addEventListener('click', () => {
+          goals.selected = li.dataset.goalId;
+          persist();
+          renderGoalTasks();
+        });
+
+        list.appendChild(li);
+        goals.items.push(goalObj);
+        renderGoalCardVisual(li, goalObj);
+      }
+
+      function loadGoals() {
+        try {
+          const raw = localStorage.getItem(GOALS_KEY);
+          const parsed = raw ? JSON.parse(raw) : { items: [], selected: null };
+          const normalized = (parsed.items || []).map(normalizeGoal);
+          goals = { items: normalized, selected: parsed.selected || null };
+          goals.items = [];
+          list.innerHTML = '';
+          normalized.forEach(g => addGoal(g, g.tasks || []));
+          renderGoalTasks();
+          syncWindowGoals();
+        } catch {}
+      }
+
+      addBtn?.addEventListener('click', () => {
+        const raw = input.value.trim();
+        if (!raw) return;
+        let added = false;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(item => {
+              const text = typeof item === 'string' ? item : (item?.text || '');
+              if (text) { addGoal(text); added = true; }
+            });
+          }
+        } catch {}
+        if (!added) addGoal(raw);
+        input.value = '';
+        persist();
+        renderGoalTasks();
+      });
+
+      taskBtn?.addEventListener('click', () => {
+        if (goals.selected == null) return;
+        const raw = (taskInput?.value || '').trim();
+        if (!raw) return;
+        const goal = goals.items.find(g => g.id === goals.selected);
+        if (!goal) return;
+        goal.tasks = goal.tasks || [];
+        let added = false;
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(item => {
+              const text = typeof item === 'string' ? item : (item?.text || '');
+              if (!text) return;
+              goal.tasks.push({ id: makeId('t'), text, reserved: false, completed: false });
+              added = true;
+            });
+          }
+        } catch {}
+        if (!added) {
+          goal.tasks.push({ id: makeId('t'), text: raw, reserved: false, completed: false });
+        }
+        persist();
+        if (taskInput) taskInput.value = '';
+        renderGoalTasks();
+      });
+
+      window.addEventListener('storage', (e) => {
+        if (e.key === GOALS_KEY) {
+          loadGoals();
+        }
+      });
+
+      window.addEventListener('message', (event) => {
+        if (event.data?.type === 'goal-reserved') {
+          const { goalId, taskId, text, goalText, date } = event.data.payload || {};
+          const goal = goals.items.find(g => g.id === goalId || g.text === goalText);
+          if (!goal) return;
+          const task = goal.tasks.find(t => t.id === taskId || t.text === text);
+          if (!task) return;
+          task.reserved = true;
+          task.assignedDate = date || task.assignedDate || null;
+          persist();
+          renderGoalTasks();
+        }
+        if (event.data?.type === 'goal-unreserved') {
+          const { goalId, taskId, text, goalText } = event.data.payload || {};
+          const goal = goals.items.find(g => g.id === goalId || g.text === goalText);
+          if (!goal) return;
+          const task = goal.tasks.find(t => t.id === taskId || t.text === text);
+          if (!task) return;
+          task.reserved = false;
+          task.assignedDate = null;
+          persist();
+          renderGoalTasks();
+        }
+      });
+
+      backBtn?.addEventListener('click', () => {
+        goals.selected = null;
+        persist();
+        renderGoalTasks();
+      });
+
+      publishNavActions();
+      loadGoals();
+      renderGoalTasks();
+      syncWindowGoals();
+    })();
+  </script>
+</body>
+</html>

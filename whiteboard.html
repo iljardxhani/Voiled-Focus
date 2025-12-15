@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whiteboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="content" style="padding:0; box-sizing:border-box; height:100%;">
+    <div class="container" style="border-radius:0; box-shadow:none; background:#121212;">
+      <h2 style="margin:0 0 12px 0;">Whiteboard</h2>
+      <p style="color:#b7b7b7;">Embed a canvas whiteboard here. Recommended: Excalidraw (open-source) for freeform nodes/arrows.</p>
+    </div>
+  </div>
+
+  <script>
+    // clear nav actions on this page
+    (function(){
+      try { window.parent?.postMessage({ type:'nav-actions', actions: [] }, '*'); } catch {}
+    })();
+  </script>
+</body>
+</html>

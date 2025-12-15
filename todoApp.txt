@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Progress</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="container">
+    <div class="container-of-progress">
+      <div class="progress">Focused: 0</div>
+    </div>
+    <input type="text" id="taskInput" placeholder="Enter task">
+    <button id="addTaskBtn">Add Task</button>
+    <ul id="taskList"></ul>
+  </div>
+  <script src="script.js"></script>
+</body>
+
+</html>
+
+
+
+
+
+
+
+===========================
+/* General body styles */
+body {
+  font-family: 'Roboto', sans-serif;
+  background-color: #121212;
+  color: #fff;
+  margin: 0;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  line-height: 1.5;
+}
+
+/* Container for tasks */
+.container {
+  max-width: 800px;
+  width: 100%;
+  background-color: #1f1f1f;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+}
+
+/* Input field styling */
+input {
+  padding: 15px;
+  margin-right: 15px;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background-color: #333;
+  color: #fff;
+  font-size: 18px;
+  width: 70%;
+  box-sizing: border-box;
+}
+
+/* Button styling */
+button {
+  padding: 15px 25px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 18px;
+  margin-left: 15px;
+}
+
+button:hover {
+  background-color: #45a049;
+}
+
+/* Task list styles */
+ul {
+  list-style-type: none;
+  padding-left: 0;
+  margin-top: 20px;
+}
+
+/* Task item styling */
+li.task {
+  background-color: #444;
+  margin: 10px 0;
+  padding: 8px 15px;
+  /* Reduced padding for a thinner look */
+  border: 1px solid #444;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 8px;
+  position: relative;
+  width: 100%;
+  height: 50px;
+  /* Reduced height for a more compact container */
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Mark completed task with gray background */
+li.completed {
+  background-color: #888 !important;
+  /* Force background-color if it's being overridden */
+  color: #fff;
+  font-weight: bold;
+  font-size: 18px;
+  text-decoration: line-through;
+  text-decoration-thickness: 3px;
+  text-decoration-color: #fff;
+  position: relative;
+  display: block;
+  /* Ensure it's treated as a block-level element */
+  z-index: 1;
+  /* Ensure it's not hidden behind other elements */
+}
+
+
+/* Container for task text */
+.task-text {
+  flex-grow: 1;
+  padding-right: 10px;
+  /* Adjusted padding */
+  font-size: 20px;
+  /* Adjusted text size */
+  color: #fff;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  /* Vertically center text */
+  justify-content: flex-start;
+}
+.task-text-end {
+  flex-grow: 1;
+    padding-right: 10px;
+    /* Adjusted padding */
+    font-size: 20px;
+    /* Adjusted text size */
+    color: #f40404;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    /* Vertically center text */
+    justify-content: flex-start;
+  
+}
+
+/* Remove button styling */
+.removeBtn {
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  /* Reduced padding */
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+  /* Smaller font for the remove button */
+}
+
+.removeBtn:hover {
+  background-color: #c0392b;
+}
+
+/* Play button styling */
+.playBtn {
+  background-color: #3498db;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  /* Reduced padding */
+  cursor: pointer;
+  border-radius: 4px;
+  margin-left: 10px;
+  font-size: 12px;
+  /* Smaller font for the play button */
+}
+
+.playBtn:hover {
+  background-color: #2980b9;
+}
+
+/* Progress container to hold the progress bar */
+.progress-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #333;
+  z-index: 0;
+}
+
+/* Progress bar styling */
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  transition: width 0.1s ease-in-out;
+  border-radius: 5px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+}
+
+.green-bar {
+  background-color: #4CAF50;
+}
+transparent-bar {
+  background-color: transparent;
+}
+.blue-bar {
+  background-color: #3498db;
+}
+.gray-bar {
+  background-color: #a6a6a60f;
+}
+
+/* Ensure task content is above the progress bar */
+.task span,
+.removeBtn,
+.playBtn {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hide buttons after play */
+button.hidden {
+  display: none;
+}
+
+/* Status sign inside the task container */
+.status-sign {
+  font-size: 12px;
+  /* Smaller text for the status sign */
+  color: #fff;
+  background-color: #f39c12;
+  padding: 4px 8px;
+  /* Adjusted padding */
+  border-radius: 12px;
+  margin-left: 10px;
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  font-weight: 500;
+  display: none;
+  /* Hide by default */
+}
+.status-sign-end {
+  font-size: 12px;
+  color: #ffffff6e !important;
+  background-color: #f39d1268 !important;
+}
+
+.container-of-progress {
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  /* Aligns progress to the right */
+  padding-bottom: 50px;
+  /* Optional, space below progress */
+}
+
+.progress {
+  background-color: #45a049;
+  text-align: right;
+  padding: 0px 20px 0px 10px;
+  border: 1px solid #444;
+  border-radius: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  width: auto;
+  box-sizing: border-box;
+}
+
+
+
+
+
+
+==================================
+document.addEventListener('DOMContentLoaded', () => {
+  const addTaskBtn = document.getElementById('addTaskBtn');
+  const taskInput = document.getElementById('taskInput');
+  const taskList = document.getElementById('taskList');
+  let focusedTime = 0; // Initialize the focused time tracker
+
+  // Add task functionality
+  addTaskBtn.addEventListener('click', () => {
+    const taskText = taskInput.value.trim();
+    if (taskText !== '') {
+      const taskItem = document.createElement('li');
+      taskItem.classList.add('task');
+
+      taskItem.innerHTML = `
+        <div class="task-text">
+          <span>${taskText}</span>
+        </div>
+        <button class="removeBtn">X</button>
+        <button class="playBtn">▶</button>
+        <div class="progress-container">
+          <div class="progress-bar green-bar"></div>
+        </div>
+        <div class="status-sign">Working</div>
+      `;
+
+      // Add event listener to remove task
+      const removeBtn = taskItem.querySelector('.removeBtn');
+      removeBtn.addEventListener('click', () => {
+        taskItem.remove();
+      });
+
+      // Add event listener to play button for loading effect
+      const playBtn = taskItem.querySelector('.playBtn');
+      const progressBar = taskItem.querySelector('.progress-bar');
+      const statusSign = taskItem.querySelector('.status-sign');
+      playBtn.addEventListener('click', () => {
+        startTask(playBtn, progressBar, taskItem, statusSign); // Pass taskItem to startTask
+      });
+
+      // Append new task to the list
+      taskList.appendChild(taskItem);
+      taskInput.value = ''; // Clear input field
+    }
+  });
+
+  // Function to start task, simulate loading effect on progress bar inside task container
+  function startTask(playBtn, progressBar, taskContainer, statusSign) {
+    let progress = 0;
+    const totalTime = 100; // Total time in percentage (0-100)
+    playBtn.disabled = true; // Disable play button during task
+    playBtn.classList.add('hidden'); // Hide play button
+    taskContainer.querySelector('.removeBtn').classList.add('hidden'); // Hide remove button
+    statusSign.style.display = 'inline-block'; // Show the "Working" status
+
+    // Set interval to fill the green progress bar 1% at a time
+    const interval = setInterval(() => {
+      progress += 1; // Increase progress by 1% each time
+      progressBar.style.width = `${progress}%`; // Update progress width
+
+      // Once progress reaches 100%, change status to "Coffee Break" and start blue progress bar
+      if (progress >= totalTime) {
+        clearInterval(interval); // Stop the progress
+        focusedTime += 1; // Increase by 1, or whatever logic you need
+
+        // Update the .progress div with the new focused time
+        const progressDiv = document.querySelector('.progress'); // Select the progress div
+        progressDiv.textContent = `Focused: ${focusedTime}`; // Update the displayed value
+        progressBar.classList.remove('green-bar');
+        progressBar.classList.add('transparent-bar');
+
+        statusSign.textContent = 'Coffee Break'; // Change status to "Coffee Break"
+        startCoffeeBreak(taskContainer, statusSign); // Start the second (blue) progress bar
+      }
+    }, 20); // Adjust this value to change the speed of the progress bar filling
+  }
+
+  // Function to start the Coffee Break progress
+  function startCoffeeBreak(taskContainer, statusSign) {
+    let progress = 0;
+    const coffeeBreakProgressBar = document.createElement('div');
+    coffeeBreakProgressBar.classList.add('progress-bar', 'blue-bar'); // Create blue progress bar
+    taskContainer.querySelector('.progress-container').appendChild(coffeeBreakProgressBar); // Add to the container
+
+    // Using requestAnimationFrame for smooth animation instead of setInterval
+    function updateProgress() {
+      const taskItem = taskItem.querySelector(".task-text")
+
+      
+      if (progress < 100) {
+        progress += 1; // Increase progress by 1% each time
+        coffeeBreakProgressBar.style.width = `${progress}%`; // Update progress width
+
+        // Call the function again to continue updating
+        requestAnimationFrame(updateProgress);
+      } else {
+        // Once progress reaches 100%, stop the loop and do the following
+        console.log("Progress reached 100!");
+
+        // Mark task as completed
+        taskContainer.classList.add('completed');
+        statusSign.textContent = 'Completed'; // Change status to 'Completed'
+
+        // Add custom class for completed status
+        statusSign.classList.add('status-sign-end');
+
+        // Change progress bar to gray when finished
+        
+        coffeeBreakProgressBar.classList.remove('blue-bar');
+        coffeeBreakProgressBar.classList.add('gray-bar');
+
+        // Log that the interval or loop was stopped
+        console.log("Loop stopped and progress is completed.");
+      }
+    }
+
+    // Start the loop
+    requestAnimationFrame(updateProgress);
+  }
+});
+

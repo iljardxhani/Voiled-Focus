@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Progress</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+  <div class="app-shell">
+    <!-- TOP NAV (small horizontal) -->
+    <header class="top-nav" id="topNav" role="banner" aria-hidden="false">
+      <div class="top-nav-left">
+        <button id="globalBackBtn" class="neutral-btn back-btn hidden" type="button">Back</button>
+      </div>
+      <div class="top-nav-center">
+        <span class="brand">Voiled Program</span>
+      </div>
+      <div class="top-nav-right">
+        <button id="copyBtn" class="neutral-btn">Copy</button>
+        <div id="navActions" class="nav-actions"></div>
+      </div>
+    </header>
+
+    <!-- LEFT NAV (big vertical) -->
+    <aside class="left-nav" id="leftNav" role="complementary" aria-label="Navigator">
+      <div class="left-nav-inner">
+        <nav>
+          <ul class="nav-list">
+            <li><button class="nav-item active" data-target="day.html">Day</button></li>
+            <li><button class="nav-item" data-target="calendar.html">Calendar Programming</button></li>
+            <li><button class="nav-item" data-target="goals.html">Goals</button></li><hr>
+            <li><button class="nav-item" data-target="whiteboard.html">Whiteboard</button></li>
+            <li><button class="nav-item" data-target="settings.html">Settings</button></li>
+          </ul>
+        </nav>
+      </div>
+    </aside>
+
+    <!-- MAIN (uses remaining space) -->
+    <main class="main-area">
+      <div class="content">
+        <div class="display-area">
+          <iframe id="contentFrame" src="day.html" title="Content" class="content-frame" aria-live="polite"></iframe>
+        </div>
+      </div><!-- /.content -->
+    </main>
+  </div>
+
+  <script>
+    (function() {
+      const frame = document.getElementById('contentFrame');
+      const navItems = document.querySelectorAll('.left-nav .nav-item');
+      const navActions = document.getElementById('navActions');
+      const backBtn = document.getElementById('globalBackBtn');
+      const calendarNav = Array.from(navItems).find(b => b.dataset.target === 'calendar.html');
+      let currentBackAction = null;
+
+      function setActive(btn) {
+        navItems.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      }
+
+      navItems.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const target = btn.dataset.target;
+          if (target && frame) {
+            frame.src = target;
+            setActive(btn);
+          }
+        });
+      });
+
+      function hasGoalDrag(event) {
+        const types = event.dataTransfer?.types || [];
+        return Array.from(types).includes('application/x-voiled-goal-task');
+      }
+
+      function goToCalendarFromDrag() {
+        if (!frame || frame.src.endsWith('calendar.html')) return;
+        frame.src = 'calendar.html';
+        if (calendarNav) setActive(calendarNav);
+      }
+
+      calendarNav?.addEventListener('dragenter', (e) => {
+        if (!hasGoalDrag(e)) return;
+        goToCalendarFromDrag();
+      });
+      calendarNav?.addEventListener('dragover', (e) => {
+        if (!hasGoalDrag(e)) return;
+        e.preventDefault();
+        goToCalendarFromDrag();
+      });
+
+      function isBackAction(id, text) {
+        const lower = (text || '').toLowerCase();
+        return id === 'collapse-month' || id === 'back-calendar' || lower === 'back';
+      }
+
+      function setBackAction(action) {
+        currentBackAction = action || null;
+        if (!backBtn) return;
+        if (action) {
+          backBtn.textContent = action.label || 'Back';
+          backBtn.classList.remove('hidden');
+        } else {
+          backBtn.classList.add('hidden');
+        }
+      }
+
+      backBtn?.addEventListener('click', () => {
+        if (!currentBackAction) return;
+        frame?.contentWindow?.postMessage({ type: 'nav-command', action: currentBackAction.id }, '*');
+      });
+
+      (() => {
+        if (!backBtn) return;
+        let hoverTimer = null;
+        backBtn.addEventListener('dragenter', (e) => {
+          if (!currentBackAction || !hasGoalDrag(e) || !isBackAction(currentBackAction.id, currentBackAction.label)) return;
+          e.preventDefault();
+          clearTimeout(hoverTimer);
+          hoverTimer = setTimeout(() => backBtn.click(), 700);
+        });
+        backBtn.addEventListener('dragover', (e) => {
+          if (!currentBackAction || !hasGoalDrag(e) || !isBackAction(currentBackAction.id, currentBackAction.label)) return;
+          e.preventDefault();
+        });
+        ['dragleave','drop'].forEach(evt => {
+          backBtn.addEventListener(evt, () => { clearTimeout(hoverTimer); hoverTimer = null; });
+        });
+      })();
+
+      function renderNavActions(actions = []) {
+        if (!navActions) return;
+        const backCandidate = (actions || []).find(action => isBackAction(action.id, action.label || action.id)) || null;
+        setBackAction(backCandidate);
+        const filtered = (actions || []).filter(action => !isBackAction(action.id, action.label || action.id));
+        navActions.innerHTML = '';
+        filtered.forEach(action => {
+          const btn = document.createElement('button');
+          btn.className = 'neutral-btn';
+          btn.textContent = action.label || action.id;
+          btn.addEventListener('click', () => {
+            frame?.contentWindow?.postMessage({ type: 'nav-command', action: action.id }, '*');
+          });
+          const hasGoalDrag = (e) => {
+            try { return Array.from(e.dataTransfer?.types || []).includes('application/x-voiled-goal-task'); } catch { return false; }
+          };
+          let hoverTimer = null;
+          btn.addEventListener('dragenter', (e) => {
+            if (!hasGoalDrag(e)) return;
+            if (!isBackAction(action.id, action.label || action.id)) return;
+            e.preventDefault();
+            clearTimeout(hoverTimer);
+            hoverTimer = setTimeout(() => btn.click(), 700);
+          });
+          btn.addEventListener('dragover', (e) => {
+            if (!hasGoalDrag(e)) return;
+            if (!isBackAction(action.id, action.label || action.id)) return;
+            e.preventDefault();
+          });
+          btn.addEventListener('dragleave', () => { clearTimeout(hoverTimer); hoverTimer = null; });
+          btn.addEventListener('drop', () => { clearTimeout(hoverTimer); hoverTimer = null; });
+          navActions.appendChild(btn);
+        });
+      }
+
+      window.addEventListener('message', (event) => {
+        const { type, actions } = event.data || {};
+        if (type === 'nav-actions') {
+          renderNavActions(actions);
+        }
+      });
+    })();
+  </script>
+</body>
+
+
+
+</html>

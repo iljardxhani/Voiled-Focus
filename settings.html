@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="content" style="padding:0; box-sizing:border-box; height:100%;">
+    <div class="container" style="border-radius:0; box-shadow:none; background:#121212;">
+      <h2 style="margin:0 0 12px 0;">Settings</h2>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <label style="display:flex; align-items:center; gap:12px;">
+          <span style="min-width:140px;">Test mode</span>
+          <input type="checkbox" id="testModeToggle">
+          <span style="color:#b7b7b7; font-size:13px;">Shorten Pomodoro for debugging</span>
+        </label>
+
+        <label style="display:flex; align-items:center; gap:12px;">
+          <span style="min-width:140px;">Sound volume</span>
+          <input type="range" id="volumeSlider" min="0" max="100" value="100" style="flex:1;">
+          <span id="volumeValue">100%</span>
+        </label>
+        <p style="color:#b7b7b7; margin:0;">Volume controls completion/confetti sounds.</p>
+
+        <label style="display:flex; align-items:center; gap:12px;">
+          <span style="min-width:140px;">Debug current day</span>
+          <input type="date" id="overrideDate" style="flex:1; padding:8px; background:#2f2f2f; color:#fff; border:1px solid #333; border-radius:6px;">
+          <button id="clearOverrideBtn" class="link-btn" type="button">Clear</button>
+        </label>
+        <p style="color:#b7b7b7; margin:0;">Override “today” to test past/future behavior. Clear to return to real date.</p>
+
+        <div style="display:flex; gap:12px; align-items:center;">
+          <button id="exportBtn" class="neutral-btn" type="button">Export data</button>
+          <button id="importBtn" class="neutral-btn" type="button">Import data</button>
+          <input type="file" id="importFile" accept=".json,application/json" style="display:none;">
+        </div>
+        <p style="color:#b7b7b7; margin:0;">Export/Import merges calendar + settings; import appends days.</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const SETTINGS_KEY = 'voiled_settings_v1';
+      const slider = document.getElementById('volumeSlider');
+      const valueLabel = document.getElementById('volumeValue');
+      const overrideDateInput = document.getElementById('overrideDate');
+      const clearOverrideBtn = document.getElementById('clearOverrideBtn');
+      const testModeToggle = document.getElementById('testModeToggle');
+      const exportBtn = document.getElementById('exportBtn');
+      const importBtn = document.getElementById('importBtn');
+      const importFile = document.getElementById('importFile');
+
+      // clear nav actions here
+      try { window.parent?.postMessage({ type:'nav-actions', actions: [] }, '*'); } catch {}
+
+      function loadSettings() {
+        try {
+          const raw = localStorage.getItem(SETTINGS_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed && typeof parsed.volume === 'number') {
+            return { volume: Math.max(0, Math.min(1, parsed.volume)), overrideDate: parsed.overrideDate || null, testMode: !!parsed.testMode };
+          }
+        } catch {}
+        return { volume: 1, overrideDate: null, testMode: false };
+      }
+
+      function saveSettings(settings) {
+        try {
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+        } catch {}
+      }
+
+      function renderVolume(vol) {
+        if (slider) slider.value = Math.round(vol * 100);
+        if (valueLabel) valueLabel.textContent = `${Math.round(vol * 100)}%`;
+      }
+
+      const current = loadSettings();
+      renderVolume(current.volume);
+      if (overrideDateInput && current.overrideDate) {
+        overrideDateInput.value = current.overrideDate;
+      }
+      if (testModeToggle) testModeToggle.checked = !!current.testMode;
+
+      slider?.addEventListener('input', (e) => {
+        const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+        const vol = val / 100;
+        saveSettings({ volume: vol, overrideDate: overrideDateInput?.value || null, testMode: testModeToggle?.checked || false });
+        renderVolume(vol);
+      });
+
+      overrideDateInput?.addEventListener('change', (e) => {
+        const raw = (e.target.value || '').trim();
+        const settings = loadSettings();
+        settings.overrideDate = raw || null;
+        saveSettings(settings);
+      });
+
+      clearOverrideBtn?.addEventListener('click', () => {
+        const settings = loadSettings();
+        settings.overrideDate = null;
+        saveSettings(settings);
+        if (overrideDateInput) overrideDateInput.value = '';
+      });
+
+      testModeToggle?.addEventListener('change', () => {
+        const settings = loadSettings();
+        settings.testMode = !!testModeToggle.checked;
+        saveSettings(settings);
+      });
+
+      exportBtn?.addEventListener('click', () => {
+        try {
+          const calendarRaw = localStorage.getItem('voiled_calendar_v1') || '{}';
+          const settingsRaw = localStorage.getItem(SETTINGS_KEY) || '{}';
+          const payload = { calendar: JSON.parse(calendarRaw || '{}'), settings: JSON.parse(settingsRaw || '{}') };
+          const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'voiled-data.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          alert('Exported data.');
+        } catch (e) {
+          alert('Export failed.');
+        }
+      });
+
+      importBtn?.addEventListener('click', () => {
+        importFile?.click();
+      });
+
+      importFile?.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const parsed = JSON.parse(reader.result);
+            const incomingCalendar = parsed?.calendar?.days || {};
+            const existingRaw = localStorage.getItem('voiled_calendar_v1');
+            const existing = existingRaw ? JSON.parse(existingRaw) : { days: {} };
+            Object.entries(incomingCalendar).forEach(([date, val]) => {
+              if (!existing.days[date]) existing.days[date] = val;
+              else {
+                const merged = existing.days[date];
+                merged.tasks = [...(merged.tasks || []), ...(val.tasks || [])];
+                merged.focusCount = Math.max(merged.focusCount || 0, val.focusCount || 0);
+                merged.planned = merged.planned || val.planned || false;
+              }
+            });
+            localStorage.setItem('voiled_calendar_v1', JSON.stringify(existing));
+            if (parsed?.settings) {
+              const current = loadSettings();
+              const newSettings = { ...current, ...parsed.settings };
+              saveSettings(newSettings);
+            }
+            alert('Import complete. Reload views to see updates.');
+          } catch (err) {
+            alert('Import failed. Invalid file.');
+          } finally {
+            e.target.value = '';
+          }
+        };
+        reader.readAsText(file);
+      });
+    })();
+  </script>
+</body>
+</html>

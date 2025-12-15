@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendar Programming</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="content" style="padding:0; box-sizing:border-box; height:100%;">
+    <div class="planner-grid" id="plannerGrid">
+      <section class="calendar-panel" id="calendarPanel" style="border-radius:0; box-shadow:none; background:#121212;">
+        <div class="calendar-year-row">
+          <div class="year-title" id="yearTitle">Year</div>
+          <div class="year-controls">
+            <button id="prevYearBtn">&#8592;</button>
+            <button id="nextYearBtn">&#8594;</button>
+          </div>
+        </div>
+        <div class="calendar-head">
+          <div>
+            <div class="calendar-title">Year Calendar</div>
+            <div class="calendar-subtitle">Tap a day to program or review it.</div>
+          </div>
+        </div>
+        <div class="year-grid" id="yearGrid"></div>
+      </section>
+
+      <section class="day-panel hidden" id="dayPanel">
+        <div class="day-panel-header">
+          <div class="day-labels">
+            <div id="selectedDateLabel" class="day-title">Select a day</div>
+            <div id="selectedDateHint" class="day-subtitle">Click a square to load or plan.</div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="backToCalendarBtn" class="link-btn">Back to calendar</button>
+            <button id="programDayBtn" class="primary-btn">Program this day</button>
+          </div>
+        </div>
+
+        <div id="dayEmptyState" class="day-empty">Choose a date on the calendar to see its tasks.</div>
+
+        <div class="container day-detail hidden" id="dayDetailContainer" style="border-radius:0; box-shadow:none; background:#121212;">
+          <div class="container-of-progress">
+            <div class="session-grid" id="sessionGrid" aria-hidden="false"></div>
+            <div class="progress">Focused: 0</div>
+          </div>
+
+          <div class="task-controls">
+            <input type="text" id="taskInput" placeholder="Enter task">
+            <button id="cycleBtn">1</button>
+            <button id="addTaskBtn">Add Task</button>
+          </div>
+
+          <ul id="taskList"></ul>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="scripts.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+</body>
+</html>
