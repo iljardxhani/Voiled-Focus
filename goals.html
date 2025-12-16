@@ -99,9 +99,6 @@
           const total = Math.max(1, stats.total || 1);
           const reservedPct = Math.min(100, (stats.reserved / total) * 100);
           const completedPct = Math.min(100, (stats.completed / total) * 100);
-          fill.style.setProperty('--goal-slot-size', `${100 / total}%`);
-          fill.style.setProperty('--goal-completed-pct', `${completedPct}%`);
-          fill.style.setProperty('--goal-reserved-pct', `${reservedPct}%`);
           fill.style.backgroundImage = `
             linear-gradient(
               to right,
@@ -111,26 +108,13 @@
               #f39c12 ${reservedPct}%,
               rgba(255,255,255,0.06) ${reservedPct}%,
               rgba(255,255,255,0.06) 100%
-            ),
-            repeating-linear-gradient(
-              to right,
-              rgba(255,255,255,0.09),
-              rgba(255,255,255,0.09) 1px,
-              transparent 1px,
-              transparent var(--goal-slot-size, 100%)
             )`;
+          fill.style.backgroundRepeat = 'no-repeat';
           fill.style.width = '100%';
         }
         if (badge) {
-          if (stats.completed && stats.completed === stats.total && stats.total > 0) {
-            badge.textContent = 'Completed';
-          } else if (stats.distributed) {
-            badge.textContent = 'Distributed';
-          } else if (stats.reserved) {
-            badge.textContent = `Reserved ${stats.reserved}/${stats.total || 1}`;
-          } else {
-            badge.textContent = 'Ready';
-          }
+          if (stats.total > 0) badge.textContent = `Completed ${stats.completed}/${stats.total}`;
+          else badge.textContent = 'No tasks';
         }
         li.draggable = !stats.distributed;
       }

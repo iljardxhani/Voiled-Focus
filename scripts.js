@@ -54,7 +54,7 @@ const TEST_BLUE_MS  = 500;
   let focusedToday = 0;
   let calendarData = loadCalendarData();
   ensureTasksDbSeeded();
-  let selectedDate = loadSelectedDate() || effectiveTodayKey();
+  let selectedDate = calendarPanel ? (loadSelectedDate() || effectiveTodayKey()) : effectiveTodayKey(); // day page always opens on today
   let currentYear = new Date(selectedDate).getFullYear();
   let expandedMonth = null;
   let dragPreviewDate = null;
@@ -1242,18 +1242,26 @@ const TEST_BLUE_MS  = 500;
     const cmp = compareDateStr(selectedDate, today);
     const allowStart = (cmp === 0) && !calendarPanel; // block starting when inside calendar view
     const allowEdit = cmp >= 0; // future or today
-    taskList?.querySelectorAll('.playBtn').forEach(btn => {
-      btn.classList.toggle('hidden', !allowStart);
-      btn.disabled = !allowStart;
-    });
-    taskList?.querySelectorAll('.removeBtn').forEach(btn => {
-      btn.disabled = !allowEdit;
-      btn.classList.toggle('hidden', !allowEdit);
-    });
     taskList?.querySelectorAll('li.task').forEach(li => {
-      if (li.classList.contains('completed')) {
+      const isCompleted = li.classList.contains('completed');
+      const playBtn = li.querySelector('.playBtn');
+      const removeBtn = li.querySelector('.removeBtn');
+
+      if (isCompleted) {
+        playBtn?.classList.add('hidden');
+        removeBtn?.classList.add('hidden');
+        if (playBtn) playBtn.disabled = true;
+        if (removeBtn) removeBtn.disabled = true;
         li.draggable = false;
       } else {
+        if (playBtn) {
+          playBtn.classList.toggle('hidden', !allowStart);
+          playBtn.disabled = !allowStart;
+        }
+        if (removeBtn) {
+          removeBtn.classList.toggle('hidden', !allowEdit);
+          removeBtn.disabled = !allowEdit;
+        }
         li.draggable = allowEdit && li.dataset.running !== 'true';
       }
     });
@@ -1599,11 +1607,12 @@ const TEST_BLUE_MS  = 500;
     if (!isTodaySelected()) return;
     const cycleCount = parseInt(taskContainer.dataset.cycles, 10) || 1;
     const progressContainer = taskContainer.querySelector('.progress-container');
+    const removeBtn = taskContainer.querySelector('.removeBtn');
 
     taskContainer.dataset.running = 'true';
     taskContainer.draggable = false;
     if (playBtn) { playBtn.disabled = true; playBtn.classList.add('hidden'); }
-    taskContainer.querySelector('.removeBtn')?.classList.add('hidden');
+    if (removeBtn) removeBtn.classList.add('hidden');
 
     try {
       progressContainer.querySelectorAll('.progress-bar').forEach(b => b.remove());
@@ -1686,7 +1695,14 @@ const TEST_BLUE_MS  = 500;
       statusSign.textContent = 'Completed';
       statusSign.classList.add('status-sign-end');
       statusSign.style.display = 'inline-block'; // ensure visible
-      // keep buttons hidden
+      if (playBtn) {
+        playBtn.classList.add('hidden');
+        playBtn.disabled = true;
+      }
+      if (removeBtn) {
+        removeBtn.classList.add('hidden');
+        removeBtn.disabled = true;
+      }
 
       saveTasks();
 
@@ -1700,7 +1716,6 @@ const TEST_BLUE_MS  = 500;
       delete taskContainer.dataset.runningPhase;
       delete taskContainer.dataset.runningCycle;
       delete taskContainer.dataset.startedAt;
-      saveTasks();
     }
   }
 

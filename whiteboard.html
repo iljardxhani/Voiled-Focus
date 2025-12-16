@@ -3,21 +3,1760 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Whiteboard</title>
+  <title>Roadmap Whiteboard</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="content" style="padding:0; box-sizing:border-box; height:100%;">
-    <div class="container" style="border-radius:0; box-shadow:none; background:#121212;">
-      <h2 style="margin:0 0 12px 0;">Whiteboard</h2>
-      <p style="color:#b7b7b7;">Embed a canvas whiteboard here. Recommended: Excalidraw (open-source) for freeform nodes/arrows.</p>
+  <div class="whiteboard-app">
+    <div class="wb-toolbar">
+      <div class="wb-toolbar-left">
+        <button id="addBoxBtn" class="wb-btn primary">Add Box</button>
+        <button id="arrowModeBtn" class="wb-btn ghost" title="Link mode (drag handles to connect)">Add Arrow</button>
+        <button id="panModeBtn" class="wb-btn ghost" title="Pan mode (hold space or use middle mouse)">Pan Mode</button>
+        <button id="templateBtn" class="wb-btn ghost" title="Insert Idea -> MVP -> Launch">Template</button>
+        <button id="snapToggleBtn" class="wb-btn ghost">Snap: On</button>
+        <div class="wb-divider"></div>
+        <button id="undoBtn" class="wb-btn ghost">Undo</button>
+        <button id="redoBtn" class="wb-btn ghost">Redo</button>
+        <button id="resetBoardBtn" class="wb-btn ghost danger">Reset Board</button>
+      </div>
+      <div class="wb-toolbar-right">
+        <div class="wb-group">
+          <button id="zoomOutBtn" class="wb-btn ghost" title="Zoom Out">-</button>
+          <button id="zoomInBtn" class="wb-btn ghost" title="Zoom In">+</button>
+          <button id="fitBtn" class="wb-btn ghost" title="Fit to content">Fit</button>
+          <button id="resetViewBtn" class="wb-btn ghost" title="Reset view">Reset View</button>
+        </div>
+        <div class="wb-group">
+          <button id="exportJsonBtn" class="wb-btn ghost">Export JSON</button>
+          <button id="importJsonBtn" class="wb-btn ghost">Import JSON</button>
+          <button id="exportPngBtn" class="wb-btn ghost">Export PNG</button>
+          <button id="exportSvgBtn" class="wb-btn ghost">Export SVG</button>
+          <input type="file" id="importInput" accept="application/json" style="display:none;">
+        </div>
+      </div>
+    </div>
+
+      <div class="wb-body">
+        <div class="wb-canvas" id="whiteboardCanvas">
+          <div class="wb-stage" id="whiteboardStage">
+            <div class="wb-grid-layer" id="gridLayer"></div>
+            <svg class="wb-edges" id="connectorLayer" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="arrow-head" orient="auto" markerWidth="10" markerHeight="10" refX="6" refY="3">
+                <path d="M0,0 L0,6 L6,3 z" fill="#6fd98b"></path>
+              </marker>
+              <marker id="arrow-head-selected" orient="auto" markerWidth="10" markerHeight="10" refX="6" refY="3">
+                <path d="M0,0 L0,6 L6,3 z" fill="#4CAF50"></path>
+              </marker>
+            </defs>
+            <path id="linkPreviewPath" class="wb-link-preview" d="" />
+          </svg>
+          <div class="wb-nodes" id="nodesLayer"></div>
+        </div>
+        <canvas id="miniMap" class="wb-minimap"></canvas>
+      </div>
+
+      <div id="wbContextMenu" class="wb-context-menu hidden"></div>
+
+      <aside class="wb-inspector" id="inspector">
+        <div class="inspector-header">
+          <div>
+            <div class="inspector-title">Inspector</div>
+            <div class="inspector-sub">Click a box or arrow to edit</div>
+          </div>
+          <button id="clearSelectionBtn" class="wb-btn ghost small">Clear</button>
+        </div>
+
+        <div id="inspectorEmpty" class="inspector-empty">Nothing selected</div>
+
+        <div id="nodeInspector" class="inspector-panel hidden">
+          <label class="wb-field">
+            <span>Title</span>
+            <input id="nodeTitleInput" type="text" placeholder="Milestone title">
+          </label>
+          <label class="wb-field">
+            <span>Description</span>
+            <textarea id="nodeDescInput" rows="3" placeholder="Details, scope, notes"></textarea>
+          </label>
+          <div class="wb-row">
+            <label class="wb-field">
+              <span>Tag</span>
+              <input id="nodeTagInput" type="text" placeholder="Tag (optional)">
+            </label>
+            <label class="wb-field">
+              <span>Color</span>
+              <input id="nodeColorInput" type="color" value="#1f1f1f">
+            </label>
+          </div>
+          <div class="wb-row">
+            <button id="bringFrontBtn" class="wb-btn ghost small">Bring to Front</button>
+            <button id="sendBackBtn" class="wb-btn ghost small">Send to Back</button>
+          </div>
+          <button id="deleteNodeBtn" class="wb-btn ghost danger small">Delete Box</button>
+        </div>
+
+        <div id="edgeInspector" class="inspector-panel hidden">
+          <label class="wb-field">
+            <span>Label</span>
+            <input id="edgeLabelInput" type="text" placeholder="Dependency label">
+          </label>
+          <div class="wb-row">
+            <label class="wb-field">
+              <span>Style</span>
+              <select id="edgeStyleInput">
+                <option value="default">Default</option>
+                <option value="dashed">Dashed</option>
+                <option value="dotted">Dotted</option>
+                <option value="highlight">Highlight</option>
+                <option value="muted">Muted</option>
+              </select>
+            </label>
+            <label class="wb-field">
+              <span>Start Side</span>
+              <select id="edgeStartSideInput">
+              <option value="auto">Auto</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+              <option value="top-left">Top-Left</option>
+              <option value="top-right">Top-Right</option>
+              <option value="bottom-left">Bottom-Left</option>
+              <option value="bottom-right">Bottom-Right</option>
+            </select>
+          </label>
+          <label class="wb-field">
+            <span>End Side</span>
+            <select id="edgeEndSideInput">
+              <option value="auto">Auto</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+              <option value="top">Top</option>
+              <option value="bottom">Bottom</option>
+              <option value="top-left">Top-Left</option>
+              <option value="top-right">Top-Right</option>
+              <option value="bottom-left">Bottom-Left</option>
+              <option value="bottom-right">Bottom-Right</option>
+            </select>
+          </label>
+          </div>
+          <div class="wb-row">
+            <button id="edgeSwapBtn" class="wb-btn ghost small">Swap Direction</button>
+            <button id="deleteEdgeBtn" class="wb-btn ghost danger small">Disconnect</button>
+          </div>
+          <div class="hint-list">
+            <div>Drag the green handles on a selected arrow to move endpoints to any box side.</div>
+          </div>
+        </div>
+
+        <div id="libraryPanel" class="inspector-panel">
+          <div class="inspector-sub">Library</div>
+          <label class="wb-field">
+            <span>Item</span>
+            <select id="libraryTypeSelect">
+              <option value="box">Blank box</option>
+              <option value="goal">Goal snapshot</option>
+              <option value="day">Day plan</option>
+            </select>
+          </label>
+          <label class="wb-field" id="libraryGoalField">
+            <span>Goal</span>
+            <select id="libraryGoalSelect"></select>
+          </label>
+          <label class="wb-field hidden" id="libraryDayField">
+            <span>Date</span>
+            <input type="date" id="libraryDateInput">
+          </label>
+          <div class="wb-row">
+            <button id="libraryRefreshBtn" class="wb-btn ghost small">Refresh</button>
+            <button id="libraryAddBtn" class="wb-btn primary small">Add to board</button>
+          </div>
+          <div class="hint-list" id="libraryHint">
+            <div>Pull in your goals or a day's tasks without cluttering the toolbar.</div>
+          </div>
+        </div>
+
+        <div class="inspector-panel">
+          <div class="inspector-sub">Board</div>
+          <div class="wb-row">
+            <button id="toggleMiniMapBtn" class="wb-btn ghost small">Mini-map</button>
+            <button id="resetViewSmallBtn" class="wb-btn ghost small">Reset View</button>
+          </div>
+          <button id="resetBoardSmallBtn" class="wb-btn ghost danger small">Reset Board</button>
+        </div>
+
+        <div class="inspector-panel">
+          <div class="inspector-sub">Keyboard</div>
+          <div class="hint-list">
+            <div>Del: delete selection</div>
+            <div>Ctrl/Cmd + Z / Y: undo / redo</div>
+            <div>Space or middle mouse: pan</div>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 
   <script>
-    // clear nav actions on this page
     (function(){
       try { window.parent?.postMessage({ type:'nav-actions', actions: [] }, '*'); } catch {}
+    })();
+
+    (() => {
+      const STORAGE_KEY = 'voiled_whiteboard_v1';
+      const GOALS_KEY = 'voiled_goals_v1';
+      const CALENDAR_KEY = 'voiled_calendar_v1';
+      const canvas = document.getElementById('whiteboardCanvas');
+      const stage = document.getElementById('whiteboardStage');
+      const nodesLayer = document.getElementById('nodesLayer');
+      const connectorLayer = document.getElementById('connectorLayer');
+      const previewPath = document.getElementById('linkPreviewPath');
+      const gridLayer = document.getElementById('gridLayer');
+      const miniMap = document.getElementById('miniMap');
+      const contextMenu = document.getElementById('wbContextMenu');
+
+      const addBoxBtn = document.getElementById('addBoxBtn');
+      const arrowModeBtn = document.getElementById('arrowModeBtn');
+      const panModeBtn = document.getElementById('panModeBtn');
+      const templateBtn = document.getElementById('templateBtn');
+      const snapToggleBtn = document.getElementById('snapToggleBtn');
+      const undoBtn = document.getElementById('undoBtn');
+      const redoBtn = document.getElementById('redoBtn');
+      const resetBoardBtn = document.getElementById('resetBoardBtn');
+      const zoomInBtn = document.getElementById('zoomInBtn');
+      const zoomOutBtn = document.getElementById('zoomOutBtn');
+      const fitBtn = document.getElementById('fitBtn');
+      const resetViewBtn = document.getElementById('resetViewBtn');
+      const exportJsonBtn = document.getElementById('exportJsonBtn');
+      const importJsonBtn = document.getElementById('importJsonBtn');
+      const exportPngBtn = document.getElementById('exportPngBtn');
+      const exportSvgBtn = document.getElementById('exportSvgBtn');
+      const importInput = document.getElementById('importInput');
+      const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+      const resetViewSmallBtn = document.getElementById('resetViewSmallBtn');
+      const resetBoardSmallBtn = document.getElementById('resetBoardSmallBtn');
+      const toggleMiniMapBtn = document.getElementById('toggleMiniMapBtn');
+      const libraryPanel = document.getElementById('libraryPanel');
+      const libraryTypeSelect = document.getElementById('libraryTypeSelect');
+      const libraryGoalField = document.getElementById('libraryGoalField');
+      const libraryGoalSelect = document.getElementById('libraryGoalSelect');
+      const libraryDayField = document.getElementById('libraryDayField');
+      const libraryDateInput = document.getElementById('libraryDateInput');
+      const libraryAddBtn = document.getElementById('libraryAddBtn');
+      const libraryRefreshBtn = document.getElementById('libraryRefreshBtn');
+      const libraryHint = document.getElementById('libraryHint');
+
+      const nodeInspector = document.getElementById('nodeInspector');
+      const edgeInspector = document.getElementById('edgeInspector');
+      const inspectorEmpty = document.getElementById('inspectorEmpty');
+      const nodeTitleInput = document.getElementById('nodeTitleInput');
+      const nodeDescInput = document.getElementById('nodeDescInput');
+      const nodeTagInput = document.getElementById('nodeTagInput');
+      const nodeColorInput = document.getElementById('nodeColorInput');
+      const bringFrontBtn = document.getElementById('bringFrontBtn');
+      const sendBackBtn = document.getElementById('sendBackBtn');
+      const deleteNodeBtn = document.getElementById('deleteNodeBtn');
+
+      const edgeLabelInput = document.getElementById('edgeLabelInput');
+      const edgeStyleInput = document.getElementById('edgeStyleInput');
+      const edgeStartSideInput = document.getElementById('edgeStartSideInput');
+      const edgeEndSideInput = document.getElementById('edgeEndSideInput');
+      const edgeSwapBtn = document.getElementById('edgeSwapBtn');
+      const deleteEdgeBtn = document.getElementById('deleteEdgeBtn');
+
+      const GRID_SIZE = 20;
+      const MIN_ZOOM = 0.45;
+      const MAX_ZOOM = 2.2;
+      const DEFAULT_VIEWPORT = { x: 120, y: 80, zoom: 1 };
+
+      let nodes = [];
+      let edges = [];
+      let selection = null;
+      let viewport = { ...DEFAULT_VIEWPORT };
+      let snapToGrid = true;
+      let showMiniMap = true;
+      let mode = 'select'; // select | arrow | pan
+      let linkingFrom = null;
+      let dragNode = null;
+      let panSession = null;
+      let spacePanning = false;
+      let edgeHandleDrag = null;
+      let undoStack = [];
+      let redoStack = [];
+      let goalLibrary = [];
+      let calendarSnapshot = { days: {} };
+      const EDGE_SIDES = ['auto','left','right','top','bottom','top-left','top-right','bottom-left','bottom-right'];
+
+      function uid() {
+        return 'id-' + Math.random().toString(16).slice(2) + Date.now().toString(16);
+      }
+
+      function clamp(value, min, max) {
+        return Math.min(Math.max(value, min), max);
+      }
+
+      function normalizeNode(node = {}) {
+        const safeX = Number.isFinite(node.x) ? node.x : 0;
+        const safeY = Number.isFinite(node.y) ? node.y : 0;
+        const type = node.type || 'box';
+        const defaultColor = (type === 'goal' || type === 'day') ? (node.color || '') : (node.color || '#1f1f1f');
+        return {
+          id: node.id || uid(),
+          title: node.title || 'New Box',
+          description: node.description || '',
+          color: defaultColor,
+          tag: node.tag || '',
+          x: safeX,
+          y: safeY,
+          z: node.z !== undefined ? node.z : 1,
+          type,
+          goalId: node.goalId || null,
+          date: node.date || null
+        };
+      }
+
+      function normalizeEdge(edge = {}) {
+        return {
+          id: edge.id || uid(),
+          from: edge.from,
+          to: edge.to,
+          label: edge.label || '',
+          style: edge.style || 'default',
+          fromSide: EDGE_SIDES.includes(edge.fromSide) ? edge.fromSide : 'auto',
+          toSide: EDGE_SIDES.includes(edge.toSide) ? edge.toSide : 'auto'
+        };
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            nodes = Array.isArray(parsed.nodes) ? parsed.nodes.map(normalizeNode) : [];
+            edges = Array.isArray(parsed.edges) ? parsed.edges.map(normalizeEdge) : [];
+            viewport = parsed.viewport ? { ...DEFAULT_VIEWPORT, ...parsed.viewport } : { ...DEFAULT_VIEWPORT };
+            snapToGrid = parsed.snapToGrid !== undefined ? !!parsed.snapToGrid : true;
+            showMiniMap = parsed.showMiniMap !== undefined ? !!parsed.showMiniMap : true;
+          }
+        } catch (err) {
+          console.warn('Failed to load board', err);
+        }
+      }
+
+      function persistState() {
+        const payload = {
+          nodes,
+          edges,
+          viewport,
+          snapToGrid,
+          showMiniMap
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      }
+
+      function pushHistory() {
+        undoStack.push(JSON.stringify({ nodes, edges, viewport, snapToGrid, showMiniMap }));
+        if (undoStack.length > 80) undoStack.shift();
+        redoStack = [];
+      }
+
+      function restoreFromSnapshot(snapshot) {
+        try {
+          const parsed = JSON.parse(snapshot);
+          nodes = Array.isArray(parsed.nodes) ? parsed.nodes.map(normalizeNode) : [];
+          edges = Array.isArray(parsed.edges) ? parsed.edges.map(normalizeEdge) : [];
+          viewport = parsed.viewport ? { ...DEFAULT_VIEWPORT, ...parsed.viewport } : { ...DEFAULT_VIEWPORT };
+          snapToGrid = parsed.snapToGrid !== undefined ? !!parsed.snapToGrid : snapToGrid;
+          showMiniMap = parsed.showMiniMap !== undefined ? !!parsed.showMiniMap : showMiniMap;
+          selection = null;
+          linkingFrom = null;
+          applyViewport();
+          render();
+        } catch (err) {
+          console.warn('Failed to restore snapshot', err);
+        }
+      }
+
+      function toBoardCoords(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (clientX - rect.left - viewport.x) / viewport.zoom,
+          y: (clientY - rect.top - viewport.y) / viewport.zoom
+        };
+      }
+
+      function boardToScreen(x, y) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: rect.left + viewport.x + x * viewport.zoom,
+          y: rect.top + viewport.y + y * viewport.zoom
+        };
+      }
+
+      function centerBoardPoint() {
+        const rect = canvas.getBoundingClientRect();
+        return toBoardCoords(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      }
+
+      function applyViewport() {
+        stage.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
+        stage.style.setProperty('--zoom', viewport.zoom);
+      }
+
+      function updateToolbarState() {
+        arrowModeBtn.classList.toggle('active', mode === 'arrow');
+        panModeBtn.classList.toggle('active', mode === 'pan');
+        snapToggleBtn.textContent = snapToGrid ? 'Snap: On' : 'Snap: Off';
+        toggleMiniMapBtn.textContent = showMiniMap ? 'Hide Mini-map' : 'Show Mini-map';
+      }
+
+      function selectNode(id) {
+        selection = { type: 'node', id };
+        mode = mode === 'arrow' ? 'arrow' : 'select';
+        render();
+      }
+
+      function selectEdge(id) {
+        selection = { type: 'edge', id };
+        mode = mode === 'arrow' ? 'arrow' : 'select';
+        render();
+      }
+
+      function clearSelection() {
+        selection = null;
+        linkingFrom = null;
+        previewPath.setAttribute('d', '');
+        render();
+      }
+
+      function addNode(initial = {}) {
+        pushHistory();
+        const center = centerBoardPoint();
+        const node = normalizeNode({
+          ...initial,
+          id: initial.id || uid(),
+          x: initial.x !== undefined ? initial.x : center.x - 100,
+          y: initial.y !== undefined ? initial.y : center.y - 60,
+          z: initial.z !== undefined ? initial.z : nodes.length + 1
+        });
+        if (snapToGrid) {
+          node.x = Math.round(node.x / GRID_SIZE) * GRID_SIZE;
+          node.y = Math.round(node.y / GRID_SIZE) * GRID_SIZE;
+        }
+        nodes.push(node);
+        selection = { type: 'node', id: node.id };
+        render();
+      }
+
+      function removeNode(id) {
+        const node = nodes.find(n => n.id === id);
+        if (!node) return;
+        pushHistory();
+        nodes = nodes.filter(n => n.id !== id);
+        edges = edges.filter(e => e.from !== id && e.to !== id);
+        selection = null;
+        render();
+      }
+
+      function removeEdge(id) {
+        const exists = edges.some(e => e.id === id);
+        if (!exists) return;
+        pushHistory();
+        edges = edges.filter(e => e.id !== id);
+        if (selection?.type === 'edge' && selection.id === id) selection = null;
+        render();
+      }
+
+      function addEdge(from, to) {
+        if (!from || !to || from === to) return;
+        if (edges.some(e => e.from === from && e.to === to)) return;
+        pushHistory();
+        edges.push(normalizeEdge({
+          id: uid(),
+          from,
+          to,
+          label: '',
+          style: 'default',
+          fromSide: 'auto',
+          toSide: 'auto'
+        }));
+        render();
+      }
+
+      function nodeBounds(node) {
+        const el = nodesLayer.querySelector(`[data-node-id="${node.id}"]`);
+        if (!el) {
+          return { x: node.x, y: node.y, w: 220, h: 120 };
+        }
+        const rect = el.getBoundingClientRect();
+        const w = rect.width / viewport.zoom;
+        const h = rect.height / viewport.zoom;
+        return { x: node.x, y: node.y, w, h };
+      }
+
+      function sideToPoint(bounds, side, fallback) {
+        const { x, y, w, h } = bounds;
+        const midX = x + w / 2;
+        const midY = y + h / 2;
+        const map = {
+          left: { x, y: midY },
+          right: { x: x + w, y: midY },
+          top: { x: midX, y },
+          bottom: { x: midX, y: y + h },
+          'top-left': { x, y },
+          'top-right': { x: x + w, y },
+          'bottom-left': { x, y: y + h },
+          'bottom-right': { x: x + w, y: y + h }
+        };
+        return map[side] || fallback || { x: midX, y: midY };
+      }
+
+      function anchor(fromNode, toNode, preferredSide = 'auto') {
+        const from = nodeBounds(fromNode);
+        const to = nodeBounds(toNode);
+        const toCenter = { x: to.x + to.w / 2, y: to.y + to.h / 2 };
+        const snapX = clamp(toCenter.x, from.x, from.x + from.w);
+        const snapY = clamp(toCenter.y, from.y, from.y + from.h);
+        if (preferredSide && preferredSide !== 'auto') {
+          return sideToPoint(from, preferredSide, { x: snapX, y: snapY });
+        }
+        const fromCenter = { x: from.x + from.w / 2, y: from.y + from.h / 2 };
+        const dx = toCenter.x - fromCenter.x;
+        const dy = toCenter.y - fromCenter.y;
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        if (absDx > absDy) {
+          return {
+            x: dx > 0 ? from.x + from.w : from.x,
+            y: snapY
+          };
+        }
+        return {
+          x: snapX,
+          y: dy > 0 ? from.y + from.h : from.y
+        };
+      }
+
+      function edgeGeometry(edge) {
+        const fromNode = nodes.find(n => n.id === edge.from);
+        const toNode = nodes.find(n => n.id === edge.to);
+        if (!fromNode || !toNode) return { d: '', mid: { x: 0, y: 0 }, start: null, end: null };
+        const start = anchor(fromNode, toNode, edge.fromSide || 'auto');
+        const end = anchor(toNode, fromNode, edge.toSide || 'auto');
+        const midX = (start.x + end.x) / 2;
+        const midY = (start.y + end.y) / 2;
+        const curve = 0.2;
+        const cx1 = start.x + (midX - start.x) * curve;
+        const cy1 = start.y + (midY - start.y) * curve;
+        const cx2 = end.x + (midX - end.x) * curve;
+        const cy2 = end.y + (midY - end.y) * curve;
+        const d = `M ${start.x} ${start.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${end.x} ${end.y}`;
+        return { d, mid: { x: midX, y: midY }, start, end };
+      }
+
+      function nearestSide(bounds, point) {
+        const candidates = {
+          left: sideToPoint(bounds, 'left'),
+          right: sideToPoint(bounds, 'right'),
+          top: sideToPoint(bounds, 'top'),
+          bottom: sideToPoint(bounds, 'bottom'),
+          'top-left': sideToPoint(bounds, 'top-left'),
+          'top-right': sideToPoint(bounds, 'top-right'),
+          'bottom-left': sideToPoint(bounds, 'bottom-left'),
+          'bottom-right': sideToPoint(bounds, 'bottom-right')
+        };
+        let closest = 'left';
+        let best = Infinity;
+        Object.entries(candidates).forEach(([side, pos]) => {
+          const dx = pos.x - point.x;
+          const dy = pos.y - point.y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < best) {
+            best = dist;
+            closest = side;
+          }
+        });
+        return closest;
+      }
+
+      function todayISO() {
+        return new Date().toISOString().slice(0, 10);
+      }
+
+      function formatDateLabel(dateStr) {
+        if (!dateStr) return 'Day plan';
+        const d = new Date(`${dateStr}T00:00:00`);
+        if (Number.isNaN(d.getTime())) return dateStr;
+        return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+      }
+
+      function loadGoalLibrary() {
+        try {
+          const raw = localStorage.getItem(GOALS_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          const items = Array.isArray(parsed?.items) ? parsed.items : [];
+          goalLibrary = items.map(item => ({
+            id: item.id || uid(),
+            text: item.text || '',
+            tasks: Array.isArray(item.tasks) ? item.tasks : []
+          }));
+        } catch {
+          goalLibrary = [];
+        }
+      }
+
+      function loadCalendarSnapshot() {
+        try {
+          const raw = localStorage.getItem(CALENDAR_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed && parsed.days && typeof parsed.days === 'object') {
+            calendarSnapshot = { days: parsed.days };
+          } else {
+            calendarSnapshot = { days: {} };
+          }
+        } catch {
+          calendarSnapshot = { days: {} };
+        }
+      }
+
+      function goalStats(goal) {
+        const total = goal?.tasks?.length || 0;
+        const completed = goal?.tasks?.filter(t => t.completed).length || 0;
+        const reserved = goal?.tasks?.filter(t => t.reserved || t.completed).length || 0;
+        const progress = total ? Math.round((completed / total) * 100) : 0;
+        return { total, reserved, completed, progress };
+      }
+
+      function findGoalForNode(node) {
+        if (!node) return null;
+        return goalLibrary.find(g => g.id === node.goalId || (!node.goalId && g.text === node.title)) || null;
+      }
+
+      function daySnapshot(dateStr) {
+        const key = dateStr || todayISO();
+        const entry = calendarSnapshot?.days?.[key] || { tasks: [] };
+        const tasks = Array.isArray(entry.tasks) ? entry.tasks.map(t => ({ text: t.text || '', completed: !!t.completed })) : [];
+        const completed = tasks.filter(t => t.completed).length;
+        return { tasks, completed, total: tasks.length, date: key };
+      }
+
+      function updateLibraryHint() {
+        if (!libraryHint) return;
+        const type = libraryTypeSelect?.value || 'box';
+        let text = 'Add a blank box anywhere in view.';
+        if (type === 'goal') {
+          text = goalLibrary.length ? 'Drop a read-only goal card with live progress.' : 'No goals saved yet (check the Goals page).';
+        } else if (type === 'day') {
+          text = 'Insert a dated plan with the tasks already saved for that day.';
+        }
+        libraryHint.innerHTML = `<div>${text}</div>`;
+      }
+
+      function updateGoalOptions() {
+        if (!libraryGoalSelect) return;
+        const prev = libraryGoalSelect.value;
+        libraryGoalSelect.innerHTML = '';
+        if (!goalLibrary.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No goals saved';
+          libraryGoalSelect.appendChild(opt);
+          libraryGoalSelect.setAttribute('disabled', 'true');
+          return;
+        }
+        libraryGoalSelect.removeAttribute('disabled');
+        goalLibrary.forEach(goal => {
+          const stats = goalStats(goal);
+          const opt = document.createElement('option');
+          opt.value = goal.id;
+          opt.textContent = `${goal.text || 'Goal'} (${stats.completed}/${stats.total})`;
+          libraryGoalSelect.appendChild(opt);
+        });
+        const hasPrev = Array.from(libraryGoalSelect.options || []).some(opt => opt.value === prev);
+        if (hasPrev) libraryGoalSelect.value = prev;
+      }
+
+      function updateLibraryUi() {
+        if (!libraryTypeSelect) return;
+        const type = libraryTypeSelect.value;
+        libraryGoalField?.classList.toggle('hidden', type !== 'goal');
+        libraryDayField?.classList.toggle('hidden', type !== 'day');
+        if (libraryDayField && type === 'day' && libraryDateInput && !libraryDateInput.value) {
+          libraryDateInput.value = todayISO();
+        }
+        updateLibraryHint();
+      }
+
+      function refreshLibraryOptions() {
+        loadGoalLibrary();
+        loadCalendarSnapshot();
+        updateGoalOptions();
+        updateLibraryUi();
+      }
+
+      function addGoalCard(goalId) {
+        const goal = goalLibrary.find(g => g.id === goalId) || goalLibrary[0];
+        if (!goal) {
+          alert('No goals saved yet.');
+          return;
+        }
+        addNode({
+          type: 'goal',
+          goalId: goal.id,
+          title: goal.text || 'Goal',
+          tag: 'Goal'
+        });
+      }
+
+      function addDayCard(dateStr) {
+        const date = dateStr || todayISO();
+        addNode({
+          type: 'day',
+          date,
+          tag: 'Day Plan',
+          title: formatDateLabel(date)
+        });
+      }
+
+      function duplicateSelectedNode(offset = { x: 24, y: 16 }) {
+        if (selection?.type !== 'node') return;
+        const node = nodes.find(n => n.id === selection.id);
+        if (!node) return;
+        const maxZ = Math.max(...nodes.map(n => n.z || 1), 1);
+        const clone = {
+          ...node,
+          id: uid(),
+          x: node.x + offset.x,
+          y: node.y + offset.y,
+          z: maxZ + 1
+        };
+        addNode(clone);
+      }
+
+      function bringSelectedToFront() {
+        if (selection?.type !== 'node') return;
+        const node = nodes.find(n => n.id === selection.id);
+        if (!node) return;
+        pushHistory();
+        const maxZ = Math.max(...nodes.map(n => n.z || 1), 1);
+        node.z = maxZ + 1;
+        render();
+      }
+
+      function sendSelectedToBack() {
+        if (selection?.type !== 'node') return;
+        const node = nodes.find(n => n.id === selection.id);
+        if (!node) return;
+        pushHistory();
+        const minZ = Math.min(...nodes.map(n => n.z || 1), 1);
+        node.z = minZ - 1;
+        render();
+      }
+
+      function deleteSelectedEdge() {
+        if (selection?.type === 'edge') removeEdge(selection.id);
+      }
+
+      function swapEdgeDirection(edgeId) {
+        const edge = edges.find(e => e.id === edgeId);
+        if (!edge) return;
+        pushHistory();
+        [edge.from, edge.to] = [edge.to, edge.from];
+        [edge.fromSide, edge.toSide] = [edge.toSide, edge.fromSide];
+        render();
+      }
+
+      function hideContextMenu() {
+        if (!contextMenu) return;
+        contextMenu.classList.add('hidden');
+        contextMenu.innerHTML = '';
+      }
+
+      function showContextMenu(items, clientX, clientY) {
+        if (!contextMenu) return;
+        hideContextMenu();
+        if (!items || !items.length) return;
+        items.forEach(item => {
+          if (item.type === 'divider') {
+            const div = document.createElement('div');
+            div.className = 'wb-context-divider';
+            contextMenu.appendChild(div);
+            return;
+          }
+          const btn = document.createElement('button');
+          btn.className = 'wb-context-item';
+          if (item.danger) btn.classList.add('danger');
+          btn.textContent = item.label || '';
+          btn.disabled = !!item.disabled;
+          btn.addEventListener('click', () => {
+            hideContextMenu();
+            item.onClick?.();
+          });
+          contextMenu.appendChild(btn);
+        });
+        contextMenu.classList.remove('hidden');
+        contextMenu.style.left = `${clientX}px`;
+        contextMenu.style.top = `${clientY}px`;
+        const rect = contextMenu.getBoundingClientRect();
+        let x = clientX;
+        let y = clientY;
+        const pad = 8;
+        if (x + rect.width > window.innerWidth - pad) x = window.innerWidth - rect.width - pad;
+        if (y + rect.height > window.innerHeight - pad) y = window.innerHeight - rect.height - pad;
+        contextMenu.style.left = `${x}px`;
+        contextMenu.style.top = `${y}px`;
+      }
+
+      function contextMenuItems(target, data = {}) {
+        if (target === 'node') {
+          return [
+            { label: 'Duplicate', onClick: () => duplicateSelectedNode() },
+            { label: 'Bring to Front', onClick: () => bringSelectedToFront() },
+            { label: 'Send to Back', onClick: () => sendSelectedToBack() },
+            { type: 'divider' },
+            { label: 'Delete Box', danger: true, onClick: () => selection?.type === 'node' && removeNode(selection.id) }
+          ];
+        }
+        if (target === 'edge') {
+          const edgeId = data.edgeId;
+          return [
+            { label: 'Swap Direction', onClick: () => swapEdgeDirection(edgeId || selection?.id) },
+            { type: 'divider' },
+            { label: 'Delete Arrow', danger: true, onClick: () => deleteSelectedEdge() }
+          ];
+        }
+        if (target === 'canvas') {
+          const boardPos = data.boardPos || centerBoardPoint();
+          return [
+            { label: 'Add Box Here', onClick: () => addNode({ x: boardPos.x - 120, y: boardPos.y - 60 }) },
+            { label: 'Reset View', onClick: () => { viewport = { ...DEFAULT_VIEWPORT }; render(); } }
+          ];
+        }
+        return [];
+      }
+
+      function updateStageSize() {
+        const margin = 300;
+        const nodeBoxes = nodes.map(n => {
+          const b = nodeBounds(n);
+          return {
+            minX: b.x,
+            minY: b.y,
+            maxX: b.x + b.w,
+            maxY: b.y + b.h
+          };
+        });
+        const maxX = nodeBoxes.length ? Math.max(...nodeBoxes.map(b => b.maxX)) + margin : 2000;
+        const maxY = nodeBoxes.length ? Math.max(...nodeBoxes.map(b => b.maxY)) + margin : 1400;
+        const minWidth = Math.max(canvas.clientWidth / viewport.zoom + margin * 2, 1600);
+        const minHeight = Math.max(canvas.clientHeight / viewport.zoom + margin * 2, 1200);
+        const width = Math.max(minWidth, maxX);
+        const height = Math.max(minHeight, maxY);
+        stage.style.width = `${width}px`;
+        stage.style.height = `${height}px`;
+        connectorLayer.setAttribute('width', width);
+        connectorLayer.setAttribute('height', height);
+        gridLayer.style.width = `${width}px`;
+        gridLayer.style.height = `${height}px`;
+      }
+
+      function renderNodes() {
+        nodesLayer.innerHTML = '';
+        const fragment = document.createDocumentFragment();
+        nodes.forEach(node => {
+          if (!node.type) node.type = 'box';
+          const nodeType = node.type || 'box';
+          const el = document.createElement('div');
+          el.className = 'wb-node';
+          el.dataset.nodeId = node.id;
+          el.dataset.nodeType = nodeType;
+          el.style.left = `${node.x}px`;
+          el.style.top = `${node.y}px`;
+          el.style.zIndex = node.z || 1;
+          const fallbackColor = nodeType === 'goal' ? '#1b3c29' : nodeType === 'day' ? '#1f1f1f' : '#1f1f1f';
+          const baseColor = node.color || (nodeType === 'box' ? fallbackColor : '');
+          el.style.borderColor = node.color || fallbackColor;
+          if (baseColor) {
+            el.style.background = baseColor;
+          } else {
+            el.style.background = '';
+          }
+          if (nodeType === 'goal') el.classList.add('wb-node-goal');
+          if (nodeType === 'day') el.classList.add('wb-node-day');
+          if (selection?.type === 'node' && selection.id === node.id) el.classList.add('selected');
+
+          const header = document.createElement('div');
+          header.className = 'wb-node-header';
+          const tag = document.createElement('span');
+          tag.className = 'wb-node-tag';
+          tag.textContent = node.tag || (nodeType === 'goal' ? 'Goal' : nodeType === 'day' ? 'Day Plan' : 'Milestone');
+          header.appendChild(tag);
+
+          const handle = document.createElement('button');
+          handle.className = 'wb-link-handle';
+          handle.title = 'Drag to connect';
+          handle.textContent = 'Link';
+          handle.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            startLinking(node.id, e);
+          });
+          header.appendChild(handle);
+
+          const title = document.createElement('div');
+          title.className = 'wb-node-title';
+          title.textContent = node.title || 'Untitled';
+
+          const desc = document.createElement('div');
+          desc.className = 'wb-node-desc';
+          desc.textContent = node.description || 'Add details...';
+          if (!node.description && nodeType === 'box') desc.classList.add('muted');
+          if (nodeType === 'goal') {
+            const goal = findGoalForNode(node);
+            const stats = goal ? goalStats(goal) : { total: 0, reserved: 0, completed: 0, progress: 0 };
+            title.textContent = node.title || goal?.text || 'Goal';
+            desc.innerHTML = '';
+            const progress = document.createElement('div');
+            progress.className = 'wb-goal-progress';
+            const fill = document.createElement('div');
+            fill.className = 'wb-goal-progress-fill';
+            fill.style.width = `${stats.progress}%`;
+            progress.appendChild(fill);
+            const meta = document.createElement('div');
+            meta.className = 'wb-goal-meta';
+            meta.textContent = stats.total ? `${stats.completed}/${stats.total} done • ${stats.reserved} reserved` : 'No tasks yet';
+            desc.appendChild(progress);
+            desc.appendChild(meta);
+            if (node.description) {
+              const note = document.createElement('div');
+              note.className = 'wb-goal-note';
+              note.textContent = node.description;
+              desc.appendChild(note);
+            }
+          } else if (nodeType === 'day') {
+            const snapshot = daySnapshot(node.date);
+            title.textContent = node.title || formatDateLabel(node.date);
+            desc.innerHTML = '';
+            const dateLabel = document.createElement('div');
+            dateLabel.className = 'wb-day-date';
+            dateLabel.textContent = formatDateLabel(node.date);
+            const meta = document.createElement('div');
+            meta.className = 'wb-day-meta';
+            meta.textContent = snapshot.total ? `${snapshot.completed}/${snapshot.total} done` : 'No tasks planned';
+            desc.appendChild(dateLabel);
+            desc.appendChild(meta);
+            if (snapshot.tasks.length) {
+              const list = document.createElement('ul');
+              list.className = 'wb-day-tasks';
+              snapshot.tasks.slice(0, 5).forEach(task => {
+                const li = document.createElement('li');
+                li.textContent = task.text || 'Untitled task';
+                if (task.completed) li.classList.add('done');
+                list.appendChild(li);
+              });
+              desc.appendChild(list);
+              if (snapshot.tasks.length > 5) {
+                const more = document.createElement('div');
+                more.className = 'wb-day-more';
+                more.textContent = `+${snapshot.tasks.length - 5} more`;
+                desc.appendChild(more);
+              }
+            }
+            if (node.description) {
+              const note = document.createElement('div');
+              note.className = 'wb-day-note';
+              note.textContent = node.description;
+              desc.appendChild(note);
+            }
+          }
+
+          el.appendChild(header);
+          el.appendChild(title);
+          el.appendChild(desc);
+
+          el.addEventListener('pointerdown', (e) => {
+            if (mode === 'pan' || spacePanning || e.button === 1) {
+              startPan(e);
+              return;
+            }
+            if (e.button !== 0) return;
+            e.preventDefault();
+            startNodeDrag(node.id, e);
+          });
+
+          el.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (mode === 'arrow') {
+              if (linkingFrom && linkingFrom !== node.id) {
+                addEdge(linkingFrom, node.id);
+                linkingFrom = null;
+                previewPath.setAttribute('d', '');
+              } else {
+                linkingFrom = node.id;
+                previewPath.setAttribute('d', '');
+                selectNode(node.id);
+              }
+              return;
+            }
+            selectNode(node.id);
+          });
+          el.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            selectNode(node.id);
+            showContextMenu(contextMenuItems('node'), e.clientX, e.clientY);
+          });
+
+          fragment.appendChild(el);
+        });
+        nodesLayer.appendChild(fragment);
+      }
+
+      function renderEdges() {
+        connectorLayer.querySelectorAll('.wb-edge').forEach(el => el.remove());
+        edges.forEach(edge => {
+          const { d, mid, start, end } = edgeGeometry(edge);
+          if (!d) return;
+          const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          g.classList.add('wb-edge');
+          g.dataset.edgeId = edge.id;
+          if (selection?.type === 'edge' && selection.id === edge.id) g.classList.add('selected');
+
+          const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          hit.setAttribute('d', d);
+          hit.classList.add('edge-hit');
+
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', d);
+          path.classList.add('edge-path');
+          path.classList.add(`style-${edge.style || 'default'}`);
+          path.setAttribute('marker-end', selection?.id === edge.id ? 'url(#arrow-head-selected)' : 'url(#arrow-head)');
+
+          const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          label.setAttribute('x', mid.x);
+          label.setAttribute('y', mid.y - 6);
+          label.classList.add('edge-label');
+          label.textContent = edge.label || '';
+
+          g.appendChild(hit);
+          g.appendChild(path);
+          g.appendChild(label);
+
+          if (selection?.type === 'edge' && selection.id === edge.id) {
+            if (start) {
+              const startHandle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              startHandle.classList.add('edge-handle');
+              startHandle.setAttribute('cx', start.x);
+              startHandle.setAttribute('cy', start.y);
+              startHandle.setAttribute('r', 8);
+              startHandle.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                startEdgeHandleDrag(edge.id, 'from', e);
+              });
+              g.appendChild(startHandle);
+            }
+            if (end) {
+              const endHandle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+              endHandle.classList.add('edge-handle');
+              endHandle.setAttribute('cx', end.x);
+              endHandle.setAttribute('cy', end.y);
+              endHandle.setAttribute('r', 8);
+              endHandle.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                startEdgeHandleDrag(edge.id, 'to', e);
+              });
+              g.appendChild(endHandle);
+            }
+          }
+
+          g.addEventListener('pointerdown', (e) => {
+            e.stopPropagation();
+            selectEdge(edge.id);
+          });
+          g.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            selectEdge(edge.id);
+            showContextMenu(contextMenuItems('edge', { edgeId: edge.id }), e.clientX, e.clientY);
+          });
+          connectorLayer.appendChild(g);
+        });
+      }
+
+      function render() {
+        updateStageSize();
+        applyViewport();
+        renderNodes();
+        renderEdges();
+        updateInspector();
+        updateToolbarState();
+        persistState();
+        drawMiniMap();
+      }
+
+      function updateInspector() {
+        inspectorEmpty.classList.add('hidden');
+        nodeInspector.classList.add('hidden');
+        edgeInspector.classList.add('hidden');
+        if (!selection) {
+          inspectorEmpty.classList.remove('hidden');
+          return;
+        }
+        if (selection.type === 'node') {
+          const node = nodes.find(n => n.id === selection.id);
+          if (!node) return;
+          nodeTitleInput.value = node.title || '';
+          nodeDescInput.value = node.description || '';
+          nodeTagInput.value = node.tag || '';
+          nodeColorInput.value = node.color || '#1f1f1f';
+          nodeInspector.classList.remove('hidden');
+        } else if (selection.type === 'edge') {
+          const edge = edges.find(e => e.id === selection.id);
+          if (!edge) return;
+          edgeLabelInput.value = edge.label || '';
+          edgeStyleInput.value = edge.style || 'default';
+          edgeStartSideInput.value = EDGE_SIDES.includes(edge.fromSide) ? edge.fromSide : 'auto';
+          edgeEndSideInput.value = EDGE_SIDES.includes(edge.toSide) ? edge.toSide : 'auto';
+          edgeInspector.classList.remove('hidden');
+        }
+      }
+
+      function startNodeDrag(id, pointerEvent) {
+        const node = nodes.find(n => n.id === id);
+        if (!node) return;
+        dragNode = {
+          id,
+          start: toBoardCoords(pointerEvent.clientX, pointerEvent.clientY),
+          nodeStart: { x: node.x, y: node.y }
+        };
+        pushHistory();
+        window.addEventListener('pointermove', onNodeDrag);
+        window.addEventListener('pointerup', endNodeDrag);
+      }
+
+      function onNodeDrag(e) {
+        if (!dragNode) return;
+        e.preventDefault();
+        const node = nodes.find(n => n.id === dragNode.id);
+        if (!node) return;
+        const pos = toBoardCoords(e.clientX, e.clientY);
+        const dx = pos.x - dragNode.start.x;
+        const dy = pos.y - dragNode.start.y;
+        const newX = dragNode.nodeStart.x + dx;
+        const newY = dragNode.nodeStart.y + dy;
+        node.x = snapToGrid ? Math.round(newX / GRID_SIZE) * GRID_SIZE : newX;
+        node.y = snapToGrid ? Math.round(newY / GRID_SIZE) * GRID_SIZE : newY;
+        const el = nodesLayer.querySelector(`[data-node-id="${node.id}"]`);
+        if (el) {
+          el.style.left = `${node.x}px`;
+          el.style.top = `${node.y}px`;
+        }
+        renderEdges();
+        drawMiniMap();
+      }
+
+      function endNodeDrag() {
+        dragNode = null;
+        window.removeEventListener('pointermove', onNodeDrag);
+        window.removeEventListener('pointerup', endNodeDrag);
+        persistState();
+      }
+
+      function startPan(e) {
+        panSession = {
+          startX: e.clientX,
+          startY: e.clientY,
+          originX: viewport.x,
+          originY: viewport.y
+        };
+        window.addEventListener('pointermove', onPanMove);
+        window.addEventListener('pointerup', endPan);
+      }
+
+      function onPanMove(e) {
+        if (!panSession) return;
+        e.preventDefault();
+        viewport.x = panSession.originX + (e.clientX - panSession.startX);
+        viewport.y = panSession.originY + (e.clientY - panSession.startY);
+        applyViewport();
+        drawMiniMap();
+      }
+
+      function endPan() {
+        panSession = null;
+        window.removeEventListener('pointermove', onPanMove);
+        window.removeEventListener('pointerup', endPan);
+        persistState();
+      }
+
+      function startLinking(fromId, e) {
+        linkingFrom = fromId;
+        previewPath.setAttribute('d', '');
+        const move = (evt) => {
+          const pos = toBoardCoords(evt.clientX, evt.clientY);
+          const fromNode = nodes.find(n => n.id === fromId);
+          if (!fromNode) return;
+          const start = anchor(fromNode, { id: '__temp', x: pos.x, y: pos.y });
+          const d = `M ${start.x} ${start.y} L ${pos.x} ${pos.y}`;
+          previewPath.setAttribute('d', d);
+        };
+        const end = (evt) => {
+          const dropTarget = document.elementFromPoint(evt.clientX, evt.clientY)?.closest('.wb-node');
+          if (dropTarget) {
+            const targetId = dropTarget.dataset.nodeId;
+            if (targetId && targetId !== fromId) {
+              addEdge(fromId, targetId);
+            }
+          }
+          linkingFrom = null;
+          previewPath.setAttribute('d', '');
+          window.removeEventListener('pointermove', move);
+          window.removeEventListener('pointerup', end);
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', end);
+      }
+
+      function startEdgeHandleDrag(edgeId, endKey, e) {
+        const edge = edges.find(ed => ed.id === edgeId);
+        if (!edge) return;
+        e.preventDefault();
+        edgeHandleDrag = { edgeId, endKey };
+        pushHistory();
+        window.addEventListener('pointermove', onEdgeHandleDrag);
+        window.addEventListener('pointerup', endEdgeHandleDrag);
+      }
+
+      function onEdgeHandleDrag(e) {
+        if (!edgeHandleDrag) return;
+        e.preventDefault();
+        const edge = edges.find(ed => ed.id === edgeHandleDrag.edgeId);
+        if (!edge) return;
+        const nodeId = edgeHandleDrag.endKey === 'from' ? edge.from : edge.to;
+        const node = nodes.find(n => n.id === nodeId);
+        if (!node) return;
+        const point = toBoardCoords(e.clientX, e.clientY);
+        const bounds = nodeBounds(node);
+        const side = nearestSide(bounds, point);
+        if (edgeHandleDrag.endKey === 'from') edge.fromSide = side;
+        else edge.toSide = side;
+        renderEdges();
+        updateInspector();
+        drawMiniMap();
+      }
+
+      function endEdgeHandleDrag() {
+        edgeHandleDrag = null;
+        window.removeEventListener('pointermove', onEdgeHandleDrag);
+        window.removeEventListener('pointerup', endEdgeHandleDrag);
+        persistState();
+      }
+
+      function zoomAtPoint(clientX, clientY, factor) {
+        const rect = canvas.getBoundingClientRect();
+        const offsetX = clientX - rect.left;
+        const offsetY = clientY - rect.top;
+        const prevZoom = viewport.zoom;
+        const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prevZoom * factor));
+        const boardX = (offsetX - viewport.x) / prevZoom;
+        const boardY = (offsetY - viewport.y) / prevZoom;
+        viewport.zoom = newZoom;
+        viewport.x = offsetX - boardX * newZoom;
+        viewport.y = offsetY - boardY * newZoom;
+        applyViewport();
+        persistState();
+        drawMiniMap();
+      }
+
+      function fitView() {
+        if (!nodes.length) {
+          viewport = { ...DEFAULT_VIEWPORT };
+          render();
+          return;
+        }
+        const boxes = nodes.map(n => nodeBounds(n));
+        const minX = Math.min(...boxes.map(b => b.x));
+        const minY = Math.min(...boxes.map(b => b.y));
+        const maxX = Math.max(...boxes.map(b => b.x + b.w));
+        const maxY = Math.max(...boxes.map(b => b.y + b.h));
+        const rect = canvas.getBoundingClientRect();
+        const margin = 120;
+        const width = maxX - minX || 1;
+        const height = maxY - minY || 1;
+        const scaleX = (rect.width - margin * 2) / width;
+        const scaleY = (rect.height - margin * 2) / height;
+        const targetZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(scaleX, scaleY)));
+        viewport.zoom = targetZoom;
+        viewport.x = margin - minX * targetZoom;
+        viewport.y = margin - minY * targetZoom;
+        applyViewport();
+        persistState();
+        drawMiniMap();
+      }
+
+      function undo() {
+        const snap = undoStack.pop();
+        if (!snap) return;
+        redoStack.push(JSON.stringify({ nodes, edges, viewport, snapToGrid, showMiniMap }));
+        restoreFromSnapshot(snap);
+      }
+
+      function redo() {
+        const snap = redoStack.pop();
+        if (!snap) return;
+        undoStack.push(JSON.stringify({ nodes, edges, viewport, snapToGrid, showMiniMap }));
+        restoreFromSnapshot(snap);
+      }
+
+      function exportJSON() {
+        const data = {
+          nodes,
+          edges,
+          viewport,
+          snapToGrid,
+          showMiniMap
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'whiteboard.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function importJSON(text) {
+        try {
+          const parsed = JSON.parse(text);
+          pushHistory();
+          nodes = Array.isArray(parsed.nodes) ? parsed.nodes.map(normalizeNode) : [];
+          edges = Array.isArray(parsed.edges) ? parsed.edges.map(normalizeEdge) : [];
+          viewport = parsed.viewport ? { ...DEFAULT_VIEWPORT, ...parsed.viewport } : { ...DEFAULT_VIEWPORT };
+          snapToGrid = parsed.snapToGrid !== undefined ? !!parsed.snapToGrid : snapToGrid;
+          showMiniMap = parsed.showMiniMap !== undefined ? !!parsed.showMiniMap : showMiniMap;
+          selection = null;
+          render();
+        } catch (err) {
+          alert('Import failed: invalid JSON');
+        }
+      }
+
+      function exportAsSVG() {
+        const cloneStage = stage.cloneNode(true);
+        cloneStage.style.transform = stage.style.transform;
+        cloneStage.style.position = 'absolute';
+        const wrapper = document.createElement('div');
+        const rect = canvas.getBoundingClientRect();
+        wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+        wrapper.style.width = `${rect.width}px`;
+        wrapper.style.height = `${rect.height}px`;
+        wrapper.style.overflow = 'hidden';
+        wrapper.style.background = '#121212';
+        wrapper.appendChild(cloneStage);
+
+        const css = Array.from(document.styleSheets)
+          .map(sheet => {
+            try {
+              return Array.from(sheet.cssRules || []).map(r => r.cssText).join('\\n');
+            } catch {
+              return '';
+            }
+          })
+          .join('\\n');
+        const styleTag = document.createElement('style');
+        styleTag.textContent = css;
+        cloneStage.prepend(styleTag);
+
+        const serialized = new XMLSerializer().serializeToString(wrapper);
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${rect.width}" height="${rect.height}">
+          <foreignObject width="100%" height="100%">${serialized}</foreignObject>
+        </svg>`;
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'whiteboard.svg';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      function exportAsPNG() {
+        const rect = canvas.getBoundingClientRect();
+        const svgUrl = new Promise((resolve) => {
+          const cloneStage = stage.cloneNode(true);
+          cloneStage.style.transform = stage.style.transform;
+          cloneStage.style.position = 'absolute';
+          const wrapper = document.createElement('div');
+          wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+          wrapper.style.width = `${rect.width}px`;
+          wrapper.style.height = `${rect.height}px`;
+          wrapper.style.overflow = 'hidden';
+          wrapper.style.background = '#121212';
+          wrapper.appendChild(cloneStage);
+
+          const css = Array.from(document.styleSheets)
+            .map(sheet => {
+              try {
+                return Array.from(sheet.cssRules || []).map(r => r.cssText).join('\\n');
+              } catch {
+                return '';
+              }
+            })
+            .join('\\n');
+          const styleTag = document.createElement('style');
+          styleTag.textContent = css;
+          cloneStage.prepend(styleTag);
+
+          const serialized = new XMLSerializer().serializeToString(wrapper);
+          const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${rect.width}" height="${rect.height}">
+            <foreignObject width="100%" height="100%">${serialized}</foreignObject>
+          </svg>`;
+          const blob = new Blob([svg], { type: 'image/svg+xml' });
+          resolve(URL.createObjectURL(blob));
+        });
+
+        svgUrl.then(url => {
+          const img = new Image();
+          img.onload = () => {
+            const canvasEl = document.createElement('canvas');
+            canvasEl.width = rect.width;
+            canvasEl.height = rect.height;
+            const ctx = canvasEl.getContext('2d');
+            ctx.fillStyle = '#121212';
+            ctx.fillRect(0, 0, rect.width, rect.height);
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+            canvasEl.toBlob(blob => {
+              const downloadUrl = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = downloadUrl;
+              a.download = 'whiteboard.png';
+              a.click();
+              URL.revokeObjectURL(downloadUrl);
+            });
+          };
+          img.src = url;
+        });
+      }
+
+      function drawMiniMap() {
+        if (!showMiniMap || !miniMap) {
+          miniMap.style.display = 'none';
+          return;
+        }
+        miniMap.style.display = 'block';
+        const ctx = miniMap.getContext('2d');
+        const width = miniMap.width = miniMap.clientWidth || 160;
+        const height = miniMap.height = miniMap.clientHeight || 110;
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = '#0f0f0f';
+        ctx.fillRect(0, 0, width, height);
+
+        const boxes = nodes.map(n => nodeBounds(n));
+        const minX = boxes.length ? Math.min(...boxes.map(b => b.x)) : 0;
+        const minY = boxes.length ? Math.min(...boxes.map(b => b.y)) : 0;
+        const maxX = boxes.length ? Math.max(...boxes.map(b => b.x + b.w)) : width;
+        const maxY = boxes.length ? Math.max(...boxes.map(b => b.y + b.h)) : height;
+        const spanX = maxX - minX || 1;
+        const spanY = maxY - minY || 1;
+
+        const scaleX = width / (spanX + 200);
+        const scaleY = height / (spanY + 200);
+        const scale = Math.min(scaleX, scaleY);
+        const offsetX = (width - spanX * scale) / 2 - minX * scale;
+        const offsetY = (height - spanY * scale) / 2 - minY * scale;
+
+        ctx.strokeStyle = '#2e2e2e';
+        ctx.lineWidth = 1;
+        edges.forEach(edge => {
+          const from = nodes.find(n => n.id === edge.from);
+          const to = nodes.find(n => n.id === edge.to);
+          if (!from || !to) return;
+          const a = anchor(from, to, edge.fromSide || 'auto');
+          const b = anchor(to, from, edge.toSide || 'auto');
+          ctx.beginPath();
+          ctx.moveTo(a.x * scale + offsetX, a.y * scale + offsetY);
+          ctx.lineTo(b.x * scale + offsetX, b.y * scale + offsetY);
+          ctx.stroke();
+        });
+
+        nodes.forEach(n => {
+          const b = nodeBounds(n);
+          const nodeFill = n.color || (n.type === 'goal' ? '#2e7d32' : '#4CAF50');
+          ctx.fillStyle = nodeFill;
+          ctx.fillRect(b.x * scale + offsetX, b.y * scale + offsetY, Math.max(6, b.w * scale), Math.max(6, b.h * scale));
+        });
+
+        const viewWidth = canvas.clientWidth / viewport.zoom;
+        const viewHeight = canvas.clientHeight / viewport.zoom;
+        const viewX = -viewport.x / viewport.zoom;
+        const viewY = -viewport.y / viewport.zoom;
+        ctx.strokeStyle = '#4CAF50';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(viewX * scale + offsetX, viewY * scale + offsetY, viewWidth * scale, viewHeight * scale);
+      }
+
+      function resetBoard() {
+        if (!confirm('Reset the board? This clears all boxes and arrows.')) return;
+        pushHistory();
+        nodes = [];
+        edges = [];
+        selection = null;
+        viewport = { ...DEFAULT_VIEWPORT };
+        render();
+      }
+
+      function addTemplate() {
+        pushHistory();
+        const center = centerBoardPoint();
+        const baseX = center.x - 220;
+        const y = center.y - 40;
+        const templateNodes = [
+          { title: 'Idea', description: 'Capture the spark', color: '#1f4d36', tag: 'Phase', x: baseX, y },
+          { title: 'MVP', description: 'Ship something small', color: '#20314f', tag: 'Phase', x: baseX + 240, y },
+          { title: 'Launch', description: 'Release + learn', color: '#4b2f3f', tag: 'Phase', x: baseX + 480, y }
+        ].map(n => ({
+          ...n,
+          x: snapToGrid ? Math.round(n.x / GRID_SIZE) * GRID_SIZE : n.x,
+          y: snapToGrid ? Math.round(n.y / GRID_SIZE) * GRID_SIZE : n.y
+        }));
+        const ids = templateNodes.map(n => {
+          const node = { ...n, id: uid(), z: nodes.length + 1 + Math.random() };
+          nodes.push(node);
+          return node.id;
+        });
+        edges.push(normalizeEdge({ id: uid(), from: ids[0], to: ids[1], label: 'Prototype', style: 'highlight' }));
+        edges.push(normalizeEdge({ id: uid(), from: ids[1], to: ids[2], label: 'Ship', style: 'default' }));
+        selection = { type: 'node', id: ids[0] };
+        render();
+      }
+
+      addBoxBtn.addEventListener('click', () => addNode());
+      templateBtn.addEventListener('click', addTemplate);
+      arrowModeBtn.addEventListener('click', () => {
+        mode = mode === 'arrow' ? 'select' : 'arrow';
+        linkingFrom = null;
+        previewPath.setAttribute('d', '');
+        updateToolbarState();
+      });
+      panModeBtn.addEventListener('click', () => {
+        mode = mode === 'pan' ? 'select' : 'pan';
+        updateToolbarState();
+      });
+      snapToggleBtn.addEventListener('click', () => {
+        snapToGrid = !snapToGrid;
+        updateToolbarState();
+        persistState();
+      });
+      undoBtn.addEventListener('click', undo);
+      redoBtn.addEventListener('click', redo);
+      resetBoardBtn.addEventListener('click', resetBoard);
+      resetBoardSmallBtn.addEventListener('click', resetBoard);
+      zoomInBtn.addEventListener('click', () => zoomAtPoint(canvas.getBoundingClientRect().left + canvas.clientWidth / 2, canvas.getBoundingClientRect().top + canvas.clientHeight / 2, 1.12));
+      zoomOutBtn.addEventListener('click', () => zoomAtPoint(canvas.getBoundingClientRect().left + canvas.clientWidth / 2, canvas.getBoundingClientRect().top + canvas.clientHeight / 2, 0.88));
+      fitBtn.addEventListener('click', fitView);
+      resetViewBtn.addEventListener('click', () => {
+        viewport = { ...DEFAULT_VIEWPORT };
+        render();
+      });
+      resetViewSmallBtn.addEventListener('click', () => {
+        viewport = { ...DEFAULT_VIEWPORT };
+        render();
+      });
+      exportJsonBtn.addEventListener('click', exportJSON);
+      importJsonBtn.addEventListener('click', () => importInput.click());
+      importInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => importJSON(reader.result);
+        reader.readAsText(file);
+        importInput.value = '';
+      });
+      exportSvgBtn.addEventListener('click', exportAsSVG);
+      exportPngBtn.addEventListener('click', exportAsPNG);
+      clearSelectionBtn.addEventListener('click', clearSelection);
+      toggleMiniMapBtn.addEventListener('click', () => {
+        showMiniMap = !showMiniMap;
+        updateToolbarState();
+        drawMiniMap();
+        persistState();
+      });
+      libraryTypeSelect?.addEventListener('change', updateLibraryUi);
+      libraryGoalSelect?.addEventListener('change', updateLibraryHint);
+      libraryAddBtn?.addEventListener('click', () => {
+        const type = libraryTypeSelect?.value || 'box';
+        if (type === 'goal') { addGoalCard(libraryGoalSelect?.value); return; }
+        if (type === 'day') { addDayCard(libraryDateInput?.value); return; }
+        addNode();
+      });
+      libraryRefreshBtn?.addEventListener('click', () => {
+        refreshLibraryOptions();
+        render();
+      });
+
+      nodeTitleInput.addEventListener('input', () => {
+        if (selection?.type !== 'node') return;
+        const node = nodes.find(n => n.id === selection.id);
+        if (!node) return;
+        pushHistory();
+        node.title = nodeTitleInput.value;
+        render();
+      });
+      nodeDescInput.addEventListener('input', () => {
+        if (selection?.type !== 'node') return;
+        const node = nodes.find(n => n.id === selection.id);
+        if (!node) return;
+        pushHistory();
+        node.description = nodeDescInput.value;
+        render();
+      });
+      nodeTagInput.addEventListener('input', () => {
+        if (selection?.type !== 'node') return;
+        const node = nodes.find(n => n.id === selection.id);
+        if (!node) return;
+        pushHistory();
+        node.tag = nodeTagInput.value;
+        render();
+      });
+      nodeColorInput.addEventListener('input', () => {
+        if (selection?.type !== 'node') return;
+        const node = nodes.find(n => n.id === selection.id);
+        if (!node) return;
+        pushHistory();
+        node.color = nodeColorInput.value || '#1f1f1f';
+        render();
+      });
+      bringFrontBtn.addEventListener('click', () => {
+        bringSelectedToFront();
+      });
+      sendBackBtn.addEventListener('click', () => {
+        sendSelectedToBack();
+      });
+      deleteNodeBtn.addEventListener('click', () => selection?.type === 'node' && removeNode(selection.id));
+
+      edgeLabelInput.addEventListener('input', () => {
+        if (selection?.type !== 'edge') return;
+        const edge = edges.find(e => e.id === selection.id);
+        if (!edge) return;
+        pushHistory();
+        edge.label = edgeLabelInput.value;
+        render();
+      });
+      edgeStyleInput.addEventListener('change', () => {
+        if (selection?.type !== 'edge') return;
+        const edge = edges.find(e => e.id === selection.id);
+        if (!edge) return;
+        pushHistory();
+        edge.style = edgeStyleInput.value;
+        render();
+      });
+      edgeStartSideInput.addEventListener('change', () => {
+        if (selection?.type !== 'edge') return;
+        const edge = edges.find(e => e.id === selection.id);
+        if (!edge) return;
+        pushHistory();
+        edge.fromSide = EDGE_SIDES.includes(edgeStartSideInput.value) ? edgeStartSideInput.value : 'auto';
+        render();
+      });
+      edgeEndSideInput.addEventListener('change', () => {
+        if (selection?.type !== 'edge') return;
+        const edge = edges.find(e => e.id === selection.id);
+        if (!edge) return;
+        pushHistory();
+        edge.toSide = EDGE_SIDES.includes(edgeEndSideInput.value) ? edgeEndSideInput.value : 'auto';
+        render();
+      });
+      edgeSwapBtn.addEventListener('click', () => {
+        if (selection?.type !== 'edge') return;
+        swapEdgeDirection(selection.id);
+      });
+      deleteEdgeBtn.addEventListener('click', () => deleteSelectedEdge());
+
+      canvas.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.wb-node') || e.target.closest('.wb-edge')) return;
+        if (mode === 'pan' || spacePanning || e.button === 1) {
+          startPan(e);
+          return;
+        }
+        clearSelection();
+      });
+      canvas.addEventListener('contextmenu', (e) => {
+        if (e.target.closest('.wb-node') || e.target.closest('.wb-edge')) return;
+        e.preventDefault();
+        clearSelection();
+        const boardPos = toBoardCoords(e.clientX, e.clientY);
+        showContextMenu(contextMenuItems('canvas', { boardPos }), e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('wheel', (e) => {
+        if (e.ctrlKey) {
+          e.preventDefault();
+          zoomAtPoint(e.clientX, e.clientY, e.deltaY > 0 ? 0.92 : 1.08);
+        }
+      }, { passive: false });
+
+      window.addEventListener('keydown', (e) => {
+        const activeEl = document.activeElement;
+        const formActive = activeEl && (['INPUT','TEXTAREA','SELECT'].includes(activeEl.tagName) || activeEl.isContentEditable);
+        if (e.key === 'Escape') {
+          hideContextMenu();
+        }
+        if (e.code === 'Space' && !formActive) {
+          spacePanning = true;
+          canvas.classList.add('panning');
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (formActive) return;
+          if (e.shiftKey) redo(); else undo();
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          if (formActive) return;
+          redo();
+        }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+          e.preventDefault();
+          if (formActive) return;
+          duplicateSelectedNode();
+        }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (formActive) return;
+          if (selection?.type === 'node') removeNode(selection.id);
+          if (selection?.type === 'edge') removeEdge(selection.id);
+        }
+      });
+
+      window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space') {
+          spacePanning = false;
+          canvas.classList.remove('panning');
+        }
+      });
+
+      window.addEventListener('click', (e) => {
+        if (!contextMenu || contextMenu.classList.contains('hidden')) return;
+        if (!contextMenu.contains(e.target)) hideContextMenu();
+      });
+
+      window.addEventListener('scroll', () => hideContextMenu(), true);
+
+      window.addEventListener('storage', (event) => {
+        if (event.key === GOALS_KEY || event.key === CALENDAR_KEY) {
+          refreshLibraryOptions();
+          render();
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        updateStageSize();
+        drawMiniMap();
+      });
+
+      refreshLibraryOptions();
+      loadState();
+      applyViewport();
+      render();
     })();
   </script>
 </body>
