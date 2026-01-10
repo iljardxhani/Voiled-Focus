@@ -1,0 +1,8 @@
+{
+  "name": "voiled-focus",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "google-auth-library": "^9.0.0"
+  }
+}
