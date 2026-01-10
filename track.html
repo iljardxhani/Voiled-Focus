@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="content page-content">
+    <div class="container track-container">
+      <div class="track-header">
+        <div>
+          <h2>Track</h2>
+          <p class="muted" id="trackDateLabel">Today’s breakdown</p>
+        </div>
+        <div class="track-actions">
+          <button id="refreshTrackBtn" class="neutral-btn" type="button">Refresh from storage</button>
+          <div class="track-meta" id="trackMeta">—</div>
+        </div>
+      </div>
+
+      <div class="track-grid">
+        <div class="track-card chart-card">
+          <div class="card-head">
+            <div class="card-title">Focus vs break vs idle</div>
+            <div class="card-sub">Based on today’s sessions</div>
+          </div>
+          <div class="chart-body">
+            <canvas id="focusChart" width="220" height="220" aria-label="Focus chart" role="img"></canvas>
+            <div class="chart-legend" id="focusLegend"></div>
+          </div>
+          <div class="card-footer">
+            <div class="stat-callout">
+              <div class="stat-label">Sessions</div>
+              <div class="stat-value" id="sessionCount">0</div>
+            </div>
+            <div class="stat-callout">
+              <div class="stat-label">Focused minutes</div>
+              <div class="stat-value" id="focusedMinutes">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="track-card chart-card">
+          <div class="card-head">
+            <div class="card-title">Tasks today</div>
+            <div class="card-sub">Completed vs in-progress vs remaining</div>
+          </div>
+          <div class="chart-body">
+            <canvas id="taskChart" width="220" height="220" aria-label="Task chart" role="img"></canvas>
+            <div class="chart-legend" id="taskLegend"></div>
+          </div>
+          <div class="card-footer">
+            <div class="stat-callout">
+              <div class="stat-label">Done</div>
+              <div class="stat-value" id="tasksDone">0</div>
+            </div>
+            <div class="stat-callout">
+              <div class="stat-label">Total</div>
+              <div class="stat-value" id="tasksTotal">0</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="track-card goal-card">
+          <div class="card-head">
+            <div class="card-title">Goal linkage</div>
+            <div class="card-sub">Tasks sourced from goals</div>
+          </div>
+          <div class="goal-bar">
+            <div class="goal-bar-track">
+              <div class="goal-bar-fill" id="goalBarFill" style="width:0%;"></div>
+            </div>
+            <div class="goal-bar-meta" id="goalBarMeta">No tasks linked yet</div>
+          </div>
+        </div>
+
+        <div class="track-card stats-card">
+          <div class="card-head">
+            <div class="card-title">Today stats</div>
+            <div class="card-sub">Pulled from stored data</div>
+          </div>
+          <div class="stats-grid">
+            <div class="mini-stat">
+              <div class="mini-label">Total sessions</div>
+              <div class="mini-value" id="miniSessions">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Focused minutes</div>
+              <div class="mini-value" id="miniFocusMinutes">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Tasks done</div>
+              <div class="mini-value" id="miniTasksDone">0</div>
+            </div>
+            <div class="mini-stat">
+              <div class="mini-label">Tasks total</div>
+              <div class="mini-value" id="miniTasksTotal">0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const CALENDAR_KEY = 'voiled_calendar_v1';
+      const TASKS_DB_KEY = 'voiled_tasks_db_v1';
+      const SETTINGS_KEY = 'voiled_settings_v1';
+      const GOALS_KEY = 'voiled_goals_v1';
+      const MAX_SESSIONS = 20;
+      const FOCUS_MINUTES = 25;
+      const BREAK_MINUTES = 5;
+
+      const focusCanvas = document.getElementById('focusChart');
+      const taskCanvas = document.getElementById('taskChart');
+      const focusLegend = document.getElementById('focusLegend');
+      const taskLegend = document.getElementById('taskLegend');
+      const sessionCountEl = document.getElementById('sessionCount');
+      const focusedMinutesEl = document.getElementById('focusedMinutes');
+      const tasksDoneEl = document.getElementById('tasksDone');
+      const tasksTotalEl = document.getElementById('tasksTotal');
+      const trackDateLabel = document.getElementById('trackDateLabel');
+      const trackMeta = document.getElementById('trackMeta');
+      const goalBarFill = document.getElementById('goalBarFill');
+      const goalBarMeta = document.getElementById('goalBarMeta');
+      const refreshBtn = document.getElementById('refreshTrackBtn');
+      const miniSessions = document.getElementById('miniSessions');
+      const miniFocusMinutes = document.getElementById('miniFocusMinutes');
+      const miniTasksDone = document.getElementById('miniTasksDone');
+      const miniTasksTotal = document.getElementById('miniTasksTotal');
+
+      try { window.parent?.postMessage({ type:'nav-actions', actions: [] }, '*'); } catch {}
+
+      function normalizeDayEndTime(value) {
+        const match = String(value || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+        if (!match) return '00:00';
+        const hours = Math.min(23, Math.max(0, Number(match[1])));
+        const minutes = Math.min(59, Math.max(0, Number(match[2])));
+        return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+      }
+
+      function parseDayEndTime(value) {
+        const safe = normalizeDayEndTime(value);
+        const parts = safe.split(':').map(Number);
+        const hours = Number.isFinite(parts[0]) ? parts[0] : 0;
+        const minutes = Number.isFinite(parts[1]) ? parts[1] : 0;
+        return { hours, minutes, totalMinutes: (hours * 60) + minutes };
+      }
+
+      function isValidDateStr(dateStr) {
+        const match = String(dateStr || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) return false;
+        const year = Number(match[1]);
+        const month = Number(match[2]) - 1;
+        const day = Number(match[3]);
+        const ts = Date.UTC(year, month, day);
+        const check = new Date(ts);
+        return check.getUTCFullYear() === year && check.getUTCMonth() === month && check.getUTCDate() === day;
+      }
+
+      function formatLocalDate(date) {
+        const d = date instanceof Date ? date : new Date(date);
+        if (Number.isNaN(d.getTime())) return '';
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+
+      function loadSettings() {
+        try {
+          const raw = localStorage.getItem(SETTINGS_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed && typeof parsed.volume === 'number') {
+            const applyAt = Number(parsed.dayEndTimeApplyAt);
+            return {
+              volume: Math.max(0, Math.min(1, parsed.volume)),
+              overrideDate: parsed.overrideDate || null,
+              testMode: !!parsed.testMode,
+              dayEndTime: normalizeDayEndTime(parsed.dayEndTime),
+              dayEndTimePending: parsed.dayEndTimePending ? normalizeDayEndTime(parsed.dayEndTimePending) : null,
+              dayEndTimeApplyAt: Number.isFinite(applyAt) ? applyAt : null
+            };
+          }
+        } catch {}
+        return {
+          volume: 1,
+          overrideDate: null,
+          testMode: false,
+          dayEndTime: '00:00',
+          dayEndTimePending: null,
+          dayEndTimeApplyAt: null
+        };
+      }
+
+      function computeEffectiveDay(now, dayEndTime, overrideDate) {
+        if (overrideDate && isValidDateStr(overrideDate)) return overrideDate;
+        const { totalMinutes } = parseDayEndTime(dayEndTime);
+        const shifted = new Date(now.getTime() - (totalMinutes * 60000));
+        return formatLocalDate(shifted);
+      }
+
+      function getNextBoundaryTs(now, dayEndTime) {
+        const { hours, minutes } = parseDayEndTime(dayEndTime);
+        const next = new Date(now);
+        next.setHours(hours, minutes, 0, 0);
+        if (next.getTime() <= now.getTime()) {
+          next.setDate(next.getDate() + 1);
+        }
+        return next.getTime();
+      }
+
+      function computeDayEndApplyAt(now, activeTime, pendingTime) {
+        const nextActive = getNextBoundaryTs(now, activeTime);
+        let nextPending = getNextBoundaryTs(now, pendingTime);
+        if (nextPending < nextActive) {
+          nextPending += 86400000;
+        }
+        return nextPending;
+      }
+
+      function resolveDayEndTime(settings, now = new Date()) {
+        const active = normalizeDayEndTime(settings.dayEndTime);
+        const pending = settings.dayEndTimePending ? normalizeDayEndTime(settings.dayEndTimePending) : null;
+        if (!pending || settings.overrideDate) return active;
+        let applyAt = Number(settings.dayEndTimeApplyAt);
+        if (!Number.isFinite(applyAt) || applyAt <= 0) {
+          applyAt = computeDayEndApplyAt(now, active, pending);
+        }
+        if (now.getTime() >= applyAt) return pending;
+        return active;
+      }
+
+      function effectiveTodayKey() {
+        const settings = loadSettings();
+        const iso = settings.overrideDate;
+        if (iso && isValidDateStr(iso)) return iso;
+        const activeTime = resolveDayEndTime(settings);
+        return computeEffectiveDay(new Date(), activeTime, settings.overrideDate);
+      }
+
+      function loadCalendar() {
+        try {
+          const raw = localStorage.getItem(CALENDAR_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed && parsed.days) return parsed;
+        } catch {}
+        return { days: {} };
+      }
+
+      function loadTasksDb() {
+        try {
+          const raw = localStorage.getItem(TASKS_DB_KEY);
+          if (!raw) return [];
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+          if (parsed && Array.isArray(parsed.tasks)) return parsed.tasks;
+        } catch {}
+        return [];
+      }
+
+      function tasksForDate(dateStr) {
+        return loadTasksDb().filter(t => t?.date === dateStr).map(t => {
+          const clone = { ...(t || {}) };
+          return clone;
+        });
+      }
+
+      function formatDateLabel(dateStr) {
+        const parsed = new Date(`${dateStr}T00:00:00`);
+        if (Number.isNaN(parsed.getTime())) return dateStr;
+        return parsed.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      }
+
+      function parseCycles(raw) {
+        const n = parseInt(raw, 10);
+        if (Number.isNaN(n) || n <= 0) return 1;
+        return Math.min(12, n);
+      }
+
+      function pickColor(name) {
+        const root = getComputedStyle(document.documentElement);
+        const palette = {
+          focus: root.getPropertyValue('--accent')?.trim() || '#58a6ff',
+          break: '#2ea043',
+          idle: '#5c6370',
+          completed: '#2ea043',
+          progress: '#58a6ff',
+          remaining: '#f2cc60',
+          goal: '#58a6ff'
+        };
+        return palette[name] || '#ccc';
+      }
+
+      function drawDonut(canvas, segments, centerText, subText) {
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        const dpr = window.devicePixelRatio || 1;
+        const size = Math.max(canvas.clientWidth || canvas.width || 220, 200);
+        canvas.width = size * dpr;
+        canvas.height = size * dpr;
+        ctx.save();
+        ctx.scale(dpr, dpr);
+        const radius = (size / 2) - 8;
+        const inner = radius * 0.6;
+        const cx = size / 2;
+        const cy = size / 2;
+        const total = Math.max(1, segments.reduce((sum, s) => sum + Math.max(0, s.value || 0), 0));
+        let start = -Math.PI / 2;
+        segments.forEach(seg => {
+          const val = Math.max(0, seg.value || 0);
+          const angle = (val / total) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.strokeStyle = seg.color;
+          ctx.lineWidth = radius - inner;
+          ctx.lineCap = 'butt';
+          ctx.arc(cx, cy, (radius + inner) / 2, start, start + angle);
+          ctx.stroke();
+          start += angle;
+        });
+        ctx.beginPath();
+        const bg = getComputedStyle(document.documentElement).getPropertyValue('--panel')?.trim() || '#0d1117';
+        ctx.fillStyle = bg || '#0d1117';
+        ctx.arc(cx, cy, inner, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#e6edf3';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '700 18px "Space Grotesk", "DM Sans", system-ui';
+        ctx.fillText(centerText, cx, cy - 8);
+        ctx.font = '500 12px "Space Grotesk", "DM Sans", system-ui';
+        ctx.fillStyle = '#9ba8b5';
+        ctx.fillText(subText, cx, cy + 12);
+        ctx.restore();
+      }
+
+      function renderLegend(el, segments) {
+        if (!el) return;
+        el.innerHTML = '';
+        segments.forEach(seg => {
+          const row = document.createElement('div');
+          row.className = 'legend-row';
+          row.innerHTML = `
+            <span class="legend-dot" style="background:${seg.color};"></span>
+            <span class="legend-label">${seg.label}</span>
+            <span class="legend-value">${seg.legend ?? seg.value}</span>
+          `;
+          el.appendChild(row);
+        });
+      }
+
+      function renderGoalBar(linked, total) {
+        const pct = total > 0 ? Math.min(100, Math.round((linked / total) * 100)) : 0;
+        if (goalBarFill) goalBarFill.style.width = `${pct}%`;
+        if (goalBarMeta) {
+          if (total === 0) goalBarMeta.textContent = 'No tasks today';
+          else goalBarMeta.textContent = `${linked} from goals / ${total} tasks (${pct}%)`;
+        }
+      }
+
+      function renderStats(data) {
+        if (sessionCountEl) sessionCountEl.textContent = data.sessions;
+        if (focusedMinutesEl) focusedMinutesEl.textContent = data.focusMinutes;
+        if (tasksDoneEl) tasksDoneEl.textContent = data.completedTasks;
+        if (tasksTotalEl) tasksTotalEl.textContent = data.tasksTotal;
+        if (miniSessions) miniSessions.textContent = data.sessions;
+        if (miniFocusMinutes) miniFocusMinutes.textContent = data.focusMinutes;
+        if (miniTasksDone) miniTasksDone.textContent = data.completedTasks;
+        if (miniTasksTotal) miniTasksTotal.textContent = data.tasksTotal;
+        if (trackDateLabel) trackDateLabel.textContent = `Today’s breakdown — ${formatDateLabel(data.today)}`;
+        if (trackMeta) trackMeta.textContent = `Refreshed at ${new Date().toLocaleTimeString()}`;
+      }
+
+      function gatherData() {
+        const today = effectiveTodayKey();
+        const calendar = loadCalendar();
+        const entry = calendar.days?.[today] || { tasks: [], focusCount: 0, planned: false };
+        const tasks = tasksForDate(today);
+        const completedTasks = tasks.filter(t => t?.completed).length;
+        const runningTasks = tasks.filter(t => t?.running && !t?.completed).length;
+        const taskCycleSum = tasks.reduce((sum, t) => sum + parseCycles(t?.cycles), 0);
+        let sessions = Number(entry.focusCount || 0);
+        if (!sessions && taskCycleSum) sessions = taskCycleSum;
+        if (!sessions && Array.isArray(entry.tasks)) {
+          const fromEntry = entry.tasks.reduce((sum, t) => sum + parseCycles(t?.cycles), 0);
+          if (fromEntry) sessions = fromEntry;
+        }
+        let sampleUsed = false;
+        if (!sessions) {
+          sessions = 3;
+          sampleUsed = true;
+        }
+        const baseSessions = Math.max(sessions, taskCycleSum || 0, 1);
+        const focusMinutes = sessions * FOCUS_MINUTES;
+        const breakMinutes = sessions * BREAK_MINUTES;
+        const targetMinutes = baseSessions * (FOCUS_MINUTES + BREAK_MINUTES);
+        const idleMinutes = Math.max(0, targetMinutes - focusMinutes - breakMinutes);
+        const remainingTasks = Math.max(0, tasks.length - completedTasks - runningTasks);
+        const goalLinked = tasks.filter(t => t?.sourceGoalId || t?.sourceGoalText).length;
+        return {
+          today,
+          sessions: Math.min(MAX_SESSIONS, sessions),
+          focusMinutes: Math.round(focusMinutes),
+          breakMinutes: Math.round(breakMinutes),
+          idleMinutes: Math.round(idleMinutes),
+          tasksTotal: tasks.length,
+          completedTasks,
+          runningTasks,
+          remainingTasks,
+          goalLinked,
+          sampleUsed
+        };
+      }
+
+      function refresh() {
+        const data = gatherData();
+        const focusSegments = [
+          { label: 'Focus', value: data.focusMinutes, legend: data.focusMinutes + 'm', color: pickColor('focus') },
+          { label: 'Break', value: data.breakMinutes, legend: data.breakMinutes + 'm', color: pickColor('break') },
+          { label: 'Idle', value: data.idleMinutes, legend: data.idleMinutes + 'm', color: pickColor('idle') }
+        ];
+        drawDonut(focusCanvas, focusSegments, `${data.sessions}`, 'sessions');
+        renderLegend(focusLegend, focusSegments);
+
+        const taskSegments = [
+          { label: 'Completed', value: data.completedTasks, color: pickColor('completed') },
+          { label: 'In progress', value: data.runningTasks, color: pickColor('progress') },
+          { label: 'Remaining', value: data.remainingTasks, color: pickColor('remaining') }
+        ];
+        drawDonut(taskCanvas, taskSegments, `${data.tasksTotal || 0}`, 'tasks');
+        renderLegend(taskLegend, taskSegments);
+
+        renderGoalBar(data.goalLinked, data.tasksTotal);
+        renderStats(data);
+      }
+
+      refresh();
+      refreshBtn?.addEventListener('click', refresh);
+    })();
+  </script>
+</body>
+</html>
