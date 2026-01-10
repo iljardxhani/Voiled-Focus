@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Roadmap Whiteboard</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="dialog.js"></script>
 </head>
 <body>
   <div class="whiteboard-app">
@@ -696,10 +697,10 @@
         updateLibraryUi();
       }
 
-      function addGoalCard(goalId) {
+      async function addGoalCard(goalId) {
         const goal = goalLibrary.find(g => g.id === goalId) || goalLibrary[0];
         if (!goal) {
-          alert('No goals saved yet.');
+          await uiAlert('No goals saved yet.', { title: 'Library empty' });
           return;
         }
         addNode({
@@ -1324,7 +1325,7 @@
         URL.revokeObjectURL(url);
       }
 
-      function importJSON(text) {
+      async function importJSON(text) {
         try {
           const parsed = JSON.parse(text);
           pushHistory();
@@ -1336,7 +1337,7 @@
           selection = null;
           render();
         } catch (err) {
-          alert('Import failed: invalid JSON');
+          await uiAlert('Import failed: invalid JSON', { title: 'Import error', tone: 'danger' });
         }
       }
 
@@ -1495,8 +1496,14 @@
         ctx.strokeRect(viewX * scale + offsetX, viewY * scale + offsetY, viewWidth * scale, viewHeight * scale);
       }
 
-      function resetBoard() {
-        if (!confirm('Reset the board? This clears all boxes and arrows.')) return;
+      async function resetBoard() {
+        const confirmed = await uiConfirm('Reset the board? This clears all boxes and arrows.', {
+          title: 'Reset board',
+          confirmText: 'Reset',
+          cancelText: 'Cancel',
+          tone: 'danger'
+        });
+        if (!confirmed) return;
         pushHistory();
         nodes = [];
         edges = [];

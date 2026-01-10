@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="dialog.js"></script>
 </head>
 <body>
   <div class="content" style="padding:0; box-sizing:border-box; height:100%;">
@@ -184,7 +185,7 @@
         saveSettings(settings);
       });
 
-      dayEndInput?.addEventListener('change', () => {
+      dayEndInput?.addEventListener('change', async () => {
         const settings = loadSettings();
         settings.dayEndTime = dayEndInput.value || '00:00';
         saveSettings(settings);
@@ -195,12 +196,16 @@
             localStorage.setItem(LAST_ROLLOVER_KEY, eff);
             localStorage.setItem(LAST_ROLLOVER_REAL_KEY, real);
             localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
-            alert(`Day end updated. Effective day is now ${eff}.`);
+            await uiAlert(`Day end updated. Effective day is now ${eff}.`, {
+              title: 'Day end updated',
+              tone: 'success',
+              confirmText: 'Nice'
+            });
           }
         } catch {}
       });
 
-      unlockFlipBtn?.addEventListener('click', () => {
+      unlockFlipBtn?.addEventListener('click', async () => {
         const settings = loadSettings();
         const realToday = realTodayKey();
         const eff = computeEffectiveNow(settings);
@@ -210,10 +215,14 @@
           localStorage.setItem(LAST_ROLLOVER_REAL_KEY, realToday);
           localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
         } catch {}
-        alert(`Rollover limit unlocked for today. Effective day set to ${eff}. Use for testing only.`);
+        await uiAlert(`Rollover limit unlocked for today. Effective day set to ${eff}. Use for testing only.`, {
+          title: 'Limit unlocked',
+          tone: 'danger',
+          confirmText: 'Got it'
+        });
       });
 
-      exportBtn?.addEventListener('click', () => {
+      exportBtn?.addEventListener('click', async () => {
         try {
           const calendarRaw = localStorage.getItem('voiled_calendar_v1') || '{}';
           const settingsRaw = localStorage.getItem(SETTINGS_KEY) || '{}';
@@ -227,9 +236,9 @@
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          alert('Exported data.');
+          await uiAlert('Exported data.', { title: 'Backup ready', tone: 'success' });
         } catch (e) {
-          alert('Export failed.');
+          await uiAlert('Export failed.', { title: 'Export error', tone: 'danger' });
         }
       });
 
@@ -241,7 +250,7 @@
         const file = e.target.files?.[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
           try {
             const parsed = JSON.parse(reader.result);
             const incomingCalendar = parsed?.calendar?.days || {};
@@ -262,9 +271,9 @@
               const newSettings = { ...current, ...parsed.settings };
               saveSettings(newSettings);
             }
-            alert('Import complete. Reload views to see updates.');
+            await uiAlert('Import complete. Reload views to see updates.', { title: 'Import finished', tone: 'success' });
           } catch (err) {
-            alert('Import failed. Invalid file.');
+            await uiAlert('Import failed. Invalid file.', { title: 'Import error', tone: 'danger' });
           } finally {
             e.target.value = '';
           }

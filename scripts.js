@@ -88,14 +88,14 @@ const TEST_BLUE_MS  = 500;
       const res = await fetch('todoPromt.txt');
       const text = await res.text();
       await navigator.clipboard.writeText(text);
-      alert('Copied to clipboard!');
+      await uiAlert('Copied to clipboard!', { title: 'Copied', tone: 'success', confirmText: 'Nice' });
     } catch (err) {
       console.error('Copy failed', err);
-      alert('Failed to copy.');
+      await uiAlert('Failed to copy.', { title: 'Copy failed', tone: 'danger' });
     }
   });
 
-  function resetSelectedDay() {
+  async function resetSelectedDay() {
     releaseReservationsForDay(selectedDate);
     calendarData.days[selectedDate] = { tasks: [], focusCount: 0, planned: false };
     writeTasksForDate(selectedDate, [], { forcePlanned: false });
@@ -108,15 +108,21 @@ const TEST_BLUE_MS  = 500;
     updateCalendarCellClasses();
     selectDay(selectedDate);
     if (focusedDisplay) focusedDisplay.textContent = `Focused: ${focusedToday}`;
-    alert('Day cleared. Program this day again to add tasks.');
+    await uiAlert('Day cleared. Program this day again to add tasks.', { title: 'Day reset', tone: 'danger', confirmText: 'Got it' });
   }
 
   // Call it a Day logic (destructive, with confirmation + motivational alert)
-  function callItDay() {
+  async function callItDay() {
     if (!isTodaySelected()) return;
 
     const confirmMsg = "Call it a Day? This will clear today's progress and tasks. Proceed?";
-    if (!confirm(confirmMsg)) return;
+    const confirmed = await uiConfirm(confirmMsg, {
+      title: 'Call it a Day',
+      tone: 'danger',
+      confirmText: 'Clear day',
+      cancelText: 'Stay on day'
+    });
+    if (!confirmed) return;
 
     const unfinished = Array.from(taskList?.children || []).filter(li => !li.classList.contains('completed')).map(li => ({
       text: li.querySelector('.task-text .task-label')?.textContent || '',
@@ -124,12 +130,19 @@ const TEST_BLUE_MS  = 500;
     })).filter(t => t.text);
 
     let carryOver = false;
-    if (confirm('Carry over unfinished tasks to tomorrow?')) {
-      carryOver = true;
-    }
+    const carry = await uiConfirm('Carry over unfinished tasks to tomorrow?', {
+      title: 'Move leftovers forward?',
+      confirmText: 'Carry over',
+      cancelText: 'Skip'
+    });
+    if (carry) carryOver = true;
 
     // Motivational message (edit this string if you want different phrasing)
-    alert("Congratulations — you crushed it today! Take a proper break. 🌟\nEverything is cleared and ready for tomorrow.");
+    await uiAlert("Congratulations — you crushed it today! Take a proper break.\nEverything is cleared and ready for tomorrow.", {
+      title: 'Day wrapped',
+      tone: 'success',
+      confirmText: 'Rest time'
+    });
     
     
     // Fireworks show with sound
@@ -557,11 +570,15 @@ const TEST_BLUE_MS  = 500;
     return true;
   }
 
-  function maybeAlertFlipLocked(realDate) {
+  async function maybeAlertFlipLocked(realDate) {
     let lastNotice = null;
     try { lastNotice = localStorage.getItem(FLIP_LOCK_NOTICE_KEY); } catch {}
     if (lastNotice === realDate) return;
-    alert('Daily rollover limit reached: you can only advance one day per real calendar day. Try again tomorrow.');
+    await uiAlert('Daily rollover limit reached: you can only advance one day per real calendar day. Try again tomorrow.', {
+      title: 'Rollover locked',
+      tone: 'danger',
+      confirmText: 'Understood'
+    });
     try { localStorage.setItem(FLIP_LOCK_NOTICE_KEY, realDate); } catch {}
   }
 
@@ -1576,22 +1593,26 @@ const TEST_BLUE_MS  = 500;
     });
   });
 
-  function promptBulkDay() {
+  async function promptBulkDay() {
     if (compareDateStr(selectedDate, effectiveTodayKey()) < 0) {
-      alert('Cannot bulk program a past day.');
+      await uiAlert('Cannot bulk program a past day.', { title: 'Past day locked', tone: 'danger' });
       return;
     }
-    const raw = prompt('Enter tasks JSON (array of strings or objects with "text") for this day:');
+    const raw = await uiPrompt('Enter tasks JSON (array of strings or objects with "text") for this day:', {
+      title: 'Bulk program this day',
+      confirmText: 'Add tasks',
+      placeholder: '["Task A", "Task B"]'
+    });
     if (!raw) return;
     let parsed = null;
-    try { parsed = JSON.parse(raw); } catch { alert('Invalid JSON'); return; }
+    try { parsed = JSON.parse(raw); } catch { await uiAlert('Invalid JSON'); return; }
     let tasks = [];
     if (Array.isArray(parsed)) {
       tasks = parsed.map(t => typeof t === 'string' ? t : (t?.text || '')).filter(Boolean);
     } else if (parsed && Array.isArray(parsed.tasks)) {
       tasks = parsed.tasks.map(t => typeof t === 'string' ? t : (t?.text || '')).filter(Boolean);
     } else {
-      alert('Provide an array or { tasks: [] }');
+      await uiAlert('Provide an array or { tasks: [] }', { title: 'Bad format' });
       return;
     }
     const entry = syncEntryFromDb(selectedDate);
@@ -1603,16 +1624,26 @@ const TEST_BLUE_MS  = 500;
     selectDay(selectedDate);
   }
 
-  function promptBulkMonth() {
+  async function promptBulkMonth() {
     if (!expandedMonth) {
-      alert('Expand a month first.');
+      await uiAlert('Expand a month first.', { title: 'No month selected' });
       return;
     }
-    if (!confirm('Bulk program this month? This appends tasks for each provided day.')) return;
-    const raw = prompt('Enter JSON: { "YYYY-MM-DD": ["Task A", "Task B"], ... }');
+    const confirmed = await uiConfirm('Bulk program this month? This appends tasks for each provided day.', {
+      title: 'Bulk program month',
+      confirmText: 'Append tasks',
+      cancelText: 'Cancel',
+      tone: 'danger'
+    });
+    if (!confirmed) return;
+    const raw = await uiPrompt('Enter JSON: { "YYYY-MM-DD": ["Task A", "Task B"], ... }', {
+      title: 'Bulk month payload',
+      placeholder: '{"2024-03-02":["Prep","Ship"]}',
+      confirmText: 'Apply'
+    });
     if (!raw) return;
     let parsed = null;
-    try { parsed = JSON.parse(raw); } catch { alert('Invalid JSON'); return; }
+    try { parsed = JSON.parse(raw); } catch { await uiAlert('Invalid JSON'); return; }
     const today = effectiveTodayKey();
     Object.entries(parsed || {}).forEach(([date, list]) => {
       if (!Array.isArray(list)) return;
@@ -1635,7 +1666,7 @@ const TEST_BLUE_MS  = 500;
     });
     persistCalendar();
     updateCalendarCellClasses();
-    alert('Bulk month programming complete.');
+    await uiAlert('Bulk month programming complete.', { title: 'Month updated', tone: 'success', confirmText: 'Great' });
   }
 
   // --- init
