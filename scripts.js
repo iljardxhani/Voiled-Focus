@@ -44,6 +44,10 @@ const TEST_BLUE_MS  = 500;
   const GOALS_KEY = 'voiled_goals_v1';
   const SELECTED_DATE_KEY = 'voiled_selected_date_v1';
   const TASKS_DB_KEY = 'voiled_tasks_db_v1';
+  const LAST_ROLLOVER_KEY = 'voiled_last_rollover_v1';
+  const LAST_ROLLOVER_REAL_KEY = 'voiled_last_real_date_v1';
+  const FLIP_LOCK_NOTICE_KEY = 'voiled_flip_lock_notice_v1';
+  const FLIP_UNLOCK_KEY = 'voiled_flip_unlock_v1';
 
   const settingsInit = loadSettings();
   TEST_MODE = !!settingsInit.testMode;
@@ -54,7 +58,8 @@ const TEST_BLUE_MS  = 500;
   let focusedToday = 0;
   let calendarData = loadCalendarData();
   ensureTasksDbSeeded();
-  let selectedDate = calendarPanel ? (loadSelectedDate() || effectiveTodayKey()) : effectiveTodayKey(); // day page always opens on today
+  handleDayRollover();
+  let selectedDate = calendarPanel ? (loadSelectedDate() || realTodayKey()) : effectiveTodayKey(); // day page opens on effective today; calendar page defaults to real today
   let currentYear = new Date(selectedDate).getFullYear();
   let expandedMonth = null;
   let dragPreviewDate = null;
@@ -338,11 +343,12 @@ const TEST_BLUE_MS  = 500;
         return {
           volume: Math.max(0, Math.min(1, parsed.volume)),
           overrideDate: parsed.overrideDate || null,
-          testMode: !!parsed.testMode
+          testMode: !!parsed.testMode,
+          dayEndTime: typeof parsed.dayEndTime === 'string' ? parsed.dayEndTime : '00:00'
         };
       }
     } catch {}
-    return { volume: 1, overrideDate: null, testMode: false };
+    return { volume: 1, overrideDate: null, testMode: false, dayEndTime: '00:00' };
   }
 
   function getVolume() {
@@ -375,21 +381,75 @@ const TEST_BLUE_MS  = 500;
     BLUE_MS  = TEST_MODE ? TEST_BLUE_MS  : REAL_BLUE_MS;
   }
 
-  function effectiveTodayKey() {
-    const settings = loadSettings();
-    const iso = settings.overrideDate;
-    if (iso && !Number.isNaN(new Date(`${iso}T00:00:00`).getTime())) {
-      return iso;
-    }
-    return realTodayKey();
-  }
-
   function compareDateStr(a, b) {
     const aT = new Date(`${a}T00:00:00`).getTime();
     const bT = new Date(`${b}T00:00:00`).getTime();
     if (Number.isNaN(aT) || Number.isNaN(bT)) return 0;
     if (aT === bT) return 0;
     return aT < bT ? -1 : 1;
+  }
+
+  function getDayEndMinutes(settings = null) {
+    const cfg = settings || loadSettings();
+    const raw = (cfg && typeof cfg.dayEndTime === 'string') ? cfg.dayEndTime.trim() : '00:00';
+    const match = /^(\d{2}):(\d{2})$/.exec(raw);
+    if (!match) return 0;
+    const hour = Math.max(0, Math.min(23, Number(match[1]) || 0));
+    const min = Math.max(0, Math.min(59, Number(match[2]) || 0));
+    return (hour * 60) + min;
+  }
+
+  function computeBaseEffectiveToday(settings = null) {
+    const cfg = settings || loadSettings();
+    const iso = cfg.overrideDate;
+    if (iso && !Number.isNaN(new Date(`${iso}T00:00:00`).getTime())) {
+      return iso;
+    }
+    const cutoffMinutes = getDayEndMinutes(cfg);
+    const now = new Date();
+    const minutesNow = (now.getHours() * 60) + now.getMinutes();
+    const base = minutesNow < cutoffMinutes ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : now;
+    return base.toISOString().slice(0, 10);
+  }
+
+  function isFlipUnlocked(realIso) {
+    try {
+      const val = localStorage.getItem(FLIP_UNLOCK_KEY);
+      if (val === realIso) return true;
+      if (val && val !== realIso) localStorage.removeItem(FLIP_UNLOCK_KEY);
+    } catch {}
+    return false;
+  }
+
+  function applyFlipLimit(rawIso, realIso) {
+    if (isFlipUnlocked(realIso)) {
+      return { effective: rawIso, limited: false, reason: null };
+    }
+    let lastEffective = null;
+    let lastRealCarry = null;
+    try { lastEffective = localStorage.getItem(LAST_ROLLOVER_KEY); } catch {}
+    try { lastRealCarry = localStorage.getItem(LAST_ROLLOVER_REAL_KEY); } catch {}
+    if (lastEffective && lastRealCarry && lastRealCarry === realIso) {
+      const cmp = compareDateStr(rawIso, lastEffective);
+      if (cmp > 0) {
+        return { effective: lastEffective, limited: true, reason: 'forward' };
+      }
+      if (cmp < 0) {
+        return { effective: lastEffective, limited: true, reason: 'backward' };
+      }
+    }
+    return { effective: rawIso, limited: false, reason: null };
+  }
+
+  function effectiveTodayKey() {
+    const settings = loadSettings();
+    const raw = computeBaseEffectiveToday(settings);
+    if (settings.overrideDate && !Number.isNaN(new Date(`${settings.overrideDate}T00:00:00`).getTime())) {
+      return raw;
+    }
+    const real = realTodayKey();
+    const { effective } = applyFlipLimit(raw, real);
+    return effective;
   }
 
   function getDayEntry(dateStr) {
@@ -401,6 +461,108 @@ const TEST_BLUE_MS  = 500;
 
   function isTodaySelected() {
     return selectedDate === effectiveTodayKey();
+  }
+
+  function carryOverUnfinishedTasks(fromDate, toDate) {
+    if (!fromDate || !toDate) return;
+    if (compareDateStr(fromDate, toDate) >= 0) return;
+    const sourceTasks = tasksForDate(fromDate);
+    const unfinished = sourceTasks.filter(t => t && !t.completed);
+    if (!unfinished.length) return;
+    const existingTarget = tasksForDate(toDate);
+    const deduped = unfinished.filter(t => {
+      return !existingTarget.some(ex => {
+        const matchId = t.sourceTaskId && ex.sourceTaskId && t.sourceTaskId === ex.sourceTaskId;
+        const matchText = ex.text === t.text && (t.sourceGoalId ? ex.sourceGoalId === t.sourceGoalId : true);
+        return matchId || matchText;
+      });
+    });
+    if (!deduped.length) return;
+    const cleaned = deduped.map(t => ({
+      ...t,
+      completed: false,
+      running: false,
+      runningPhase: null,
+      runningCycle: null,
+      startedAt: null
+    }));
+    const combined = [...existingTarget, ...cleaned];
+    writeTasksForDate(toDate, combined, { forcePlanned: true });
+    const entry = getDayEntry(toDate);
+    entry.planned = true;
+    persistCalendar();
+    syncGoalsFromTasks(toDate, combined);
+    // remove unfinished from the source day so they no longer display there
+    const remainingSource = sourceTasks.filter(t => t && t.completed);
+    writeTasksForDate(fromDate, remainingSource, { forcePlanned: remainingSource.length > 0 });
+  }
+
+  function handleDayRollover() {
+    const settings = loadSettings();
+    const overrideActive = settings.overrideDate && !Number.isNaN(new Date(`${settings.overrideDate}T00:00:00`).getTime());
+    const realToday = realTodayKey();
+    try {
+      const lastNotice = localStorage.getItem(FLIP_LOCK_NOTICE_KEY);
+      if (lastNotice && lastNotice !== realToday) {
+        localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
+      }
+      const lastUnlock = localStorage.getItem(FLIP_UNLOCK_KEY);
+      if (lastUnlock && lastUnlock !== realToday) {
+        localStorage.removeItem(FLIP_UNLOCK_KEY);
+      }
+    } catch {}
+
+    const rawEffective = computeBaseEffectiveToday(settings);
+    const limitResult = overrideActive ? { effective: rawEffective, limited: false } : applyFlipLimit(rawEffective, realToday);
+    const currentEffective = limitResult.effective;
+
+    let lastEffective = null;
+    try {
+      lastEffective = localStorage.getItem(LAST_ROLLOVER_KEY);
+    } catch {}
+
+    if (overrideActive) {
+      try {
+        localStorage.setItem(LAST_ROLLOVER_KEY, currentEffective);
+        localStorage.setItem(LAST_ROLLOVER_REAL_KEY, realToday);
+      } catch {}
+      return false;
+    }
+
+    if (!lastEffective) {
+      try {
+        localStorage.setItem(LAST_ROLLOVER_KEY, currentEffective);
+        localStorage.setItem(LAST_ROLLOVER_REAL_KEY, realToday);
+      } catch {}
+      return false;
+    }
+
+    if (limitResult.limited && limitResult.reason === 'forward') {
+      maybeAlertFlipLocked(realToday);
+    }
+    if (limitResult.limited && limitResult.reason === 'backward') {
+      // lock to current effective without alerting for backdating
+    }
+
+    if (lastEffective === currentEffective) return false;
+
+    if (compareDateStr(lastEffective, currentEffective) < 0) {
+      carryOverUnfinishedTasks(lastEffective, currentEffective);
+    }
+
+    try {
+      localStorage.setItem(LAST_ROLLOVER_KEY, currentEffective);
+      localStorage.setItem(LAST_ROLLOVER_REAL_KEY, realToday);
+    } catch {}
+    return true;
+  }
+
+  function maybeAlertFlipLocked(realDate) {
+    let lastNotice = null;
+    try { lastNotice = localStorage.getItem(FLIP_LOCK_NOTICE_KEY); } catch {}
+    if (lastNotice === realDate) return;
+    alert('Daily rollover limit reached: you can only advance one day per real calendar day. Try again tomorrow.');
+    try { localStorage.setItem(FLIP_LOCK_NOTICE_KEY, realDate); } catch {}
   }
 
   function migrateLegacy() {
@@ -1535,6 +1697,18 @@ const TEST_BLUE_MS  = 500;
       backToCalendarBtn.addEventListener(evt, () => { clearTimeout(backHoverTimer); backHoverTimer = null; });
     });
   }
+
+  function checkRolloverAndRefresh() {
+    const changed = handleDayRollover();
+    if (changed) {
+      try {
+        location.reload();
+      } catch {}
+      return;
+    }
+  }
+
+  setInterval(checkRolloverAndRefresh, 60 * 1000);
 
   // --- cycle button ---
   cycleBtn.textContent = cycles;
