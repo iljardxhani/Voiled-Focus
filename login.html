@@ -56,6 +56,7 @@
           <span class="dot"></span>
           Continue with Google (coming soon)
         </button>
+        <button class="ghost-btn login-btn-skip" type="button">Skip (test mode)</button>
         <p class="login-note">The Google button is intentionally inert. It signals the next integration while keeping today frictionless.</p>
 
         <div class="login-divider"><span>or use prop login</span></div>
@@ -113,9 +114,19 @@
       const emailEl = document.getElementById('loginEmail');
       const passEl = document.getElementById('loginPass');
       const googleBtn = document.querySelector('.login-btn-google');
+      const skipBtn = document.querySelector('.login-btn-skip');
 
       googleBtn?.addEventListener('click', () => {
         window.location.href = '/api/auth/google';
+      });
+
+      skipBtn?.addEventListener('click', () => {
+        if (status) {
+          status.textContent = 'Skipping login (test mode only).';
+          status.classList.add('visible');
+        }
+        try { localStorage.setItem('voiled_fake_auth_v1', 'true'); } catch {}
+        try { window.parent?.postMessage({ type: 'fake-login' }, '*'); } catch {}
       });
 
       form?.addEventListener('submit', (event) => {
@@ -135,6 +146,8 @@
           status.classList.add('visible');
         }
         try { window.parent?.postMessage({ type: 'prop-logout' }, '*'); } catch {}
+        try { window.parent?.postMessage({ type: 'fake-logout' }, '*'); } catch {}
+        try { localStorage.removeItem('voiled_fake_auth_v1'); } catch {}
         fetch('/api/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
       });
     })();

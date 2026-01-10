@@ -63,6 +63,7 @@
       const backBtn = document.getElementById('globalBackBtn');
       const calendarNav = Array.from(navItems).find(b => b.dataset.target === 'calendar.html');
       const DEFAULT_PAGE = 'day.html';
+      const FAKE_AUTH_KEY = 'voiled_fake_auth_v1';
       let currentBackAction = null;
       let isAuthed = false;
 
@@ -200,11 +201,28 @@
         navItems.forEach(b => b.classList.remove('active'));
       }
 
+      function hasFakeAuth() {
+        try { return localStorage.getItem(FAKE_AUTH_KEY) === 'true'; } catch { return false; }
+      }
+
+      function setFakeAuth(on) {
+        try {
+          if (on) localStorage.setItem(FAKE_AUTH_KEY, 'true');
+          else localStorage.removeItem(FAKE_AUTH_KEY);
+        } catch {}
+      }
+
       window.addEventListener('message', (event) => {
         const { type, actions } = event.data || {};
         if (type === 'nav-actions') {
           renderNavActions(actions);
         } else if (type === 'prop-logout') {
+          enforceGate();
+        } else if (type === 'fake-login') {
+          setFakeAuth(true);
+          enforceGate();
+        } else if (type === 'fake-logout') {
+          setFakeAuth(false);
           enforceGate();
         }
       });
@@ -222,6 +240,10 @@
       }
 
       async function checkSession() {
+        if (hasFakeAuth()) {
+          isAuthed = true;
+          return;
+        }
         try {
           const res = await fetch('/api/me', { credentials: 'include' });
           if (res.ok) {
