@@ -7,44 +7,138 @@
   <link rel="stylesheet" href="styles.css">
   <script src="dialog.js"></script>
 </head>
-<body>
-  <div class="content" style="padding:0; box-sizing:border-box; height:100%;">
-    <div class="container" style="border-radius:0; box-shadow:none; background:#121212;">
-      <h2 style="margin:0 0 12px 0;">Settings</h2>
-      <div style="display:flex; flex-direction:column; gap:16px;">
-        <label style="display:flex; align-items:center; gap:12px;">
-          <span style="min-width:140px;">Test mode</span>
-          <input type="checkbox" id="testModeToggle">
-          <span style="color:#b7b7b7; font-size:13px;">Shorten Pomodoro for debugging</span>
-        </label>
-
-        <label style="display:flex; align-items:center; gap:12px;">
-          <span style="min-width:140px;">Sound volume</span>
-          <input type="range" id="volumeSlider" min="0" max="100" value="100" style="flex:1;">
-          <span id="volumeValue">100%</span>
-        </label>
-        <p style="color:#b7b7b7; margin:0;">Volume controls completion/confetti sounds.</p>
-
-        <label style="display:flex; align-items:center; gap:12px;">
-          <span style="min-width:140px;">Day ends at</span>
-          <input type="time" id="dayEndTime" style="flex:1; padding:8px; background:#2f2f2f; color:#fff; border:1px solid #333; border-radius:6px;" value="00:00">
-          <button id="unlockFlipBtn" class="link-btn" type="button">Unlock today</button>
-          <span style="color:#b7b7b7; font-size:13px;">Determines when “today” rolls over</span>
-        </label>
-
-        <label style="display:flex; align-items:center; gap:12px;">
-          <span style="min-width:140px;">Debug current day</span>
-          <input type="date" id="overrideDate" style="flex:1; padding:8px; background:#2f2f2f; color:#fff; border:1px solid #333; border-radius:6px;">
-          <button id="clearOverrideBtn" class="link-btn" type="button">Clear</button>
-        </label>
-        <p style="color:#b7b7b7; margin:0;">Override “today” to test past/future behavior. Clear to return to real date.</p>
-
-        <div style="display:flex; gap:12px; align-items:center;">
-          <button id="exportBtn" class="neutral-btn" type="button">Export data</button>
-          <button id="importBtn" class="neutral-btn" type="button">Import data</button>
-          <input type="file" id="importFile" accept=".json,application/json" style="display:none;">
+<body class="settings-body">
+  <div class="content settings-content">
+    <div class="container settings-shell">
+      <header class="settings-header">
+        <div>
+          <p class="eyebrow">Control room</p>
+          <h2 class="page-title">Settings</h2>
+          <p class="page-sub">Tune rollover rules, audio, and import safety nets.</p>
         </div>
-        <p style="color:#b7b7b7; margin:0;">Export/Import merges calendar + settings; import appends days.</p>
+        <div class="pill test-pill hidden" id="testModeBadge" aria-live="polite">Test mode</div>
+      </header>
+
+      <div class="status-strip" role="status" aria-live="polite">
+        <div class="status-item">
+          <div class="status-label">Effective date</div>
+          <div class="status-value" id="effectiveDateValue">--</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Real date</div>
+          <div class="status-value" id="realDateValue">--</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Day-end cutoff</div>
+          <div class="status-value" id="dayEndValue">--</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Flip unlocked</div>
+          <div class="status-value pill subtle" id="flipStatusValue">--</div>
+        </div>
+        <button type="button" class="chip-btn" id="resetDefaultsBtn">Reset defaults</button>
+      </div>
+
+      <div class="settings-grid">
+        <section class="settings-card">
+          <div class="card-head">
+            <p class="eyebrow">Timing</p>
+            <h3>Day logic</h3>
+          </div>
+
+          <div class="field" id="dayEndField">
+            <div class="field-top">
+              <label class="field-label" for="dayEndTime">Day ends at</label>
+            </div>
+            <input type="time" id="dayEndTime" class="text-input" aria-describedby="dayEndHelp dayEndError">
+            <div class="field-foot">
+              <p id="dayEndHelp" class="field-hint">When to flip from today to tomorrow. Use 24h time.</p>
+              <p id="dayEndError" class="field-error" role="alert"></p>
+            </div>
+          </div>
+
+          <div class="field" id="overrideField">
+            <div class="field-top">
+              <label class="field-label" for="overrideDate">Override “today” for testing</label>
+            </div>
+            <div class="field-inline">
+              <input type="date" id="overrideDate" class="text-input" aria-describedby="overrideHelp overrideError">
+              <button id="clearOverrideBtn" class="ghost-btn" type="button">Back to real date</button>
+            </div>
+            <div class="field-foot">
+              <p id="overrideHelp" class="field-hint">Use a specific date to simulate past or future behavior.</p>
+              <p id="overrideError" class="field-error" role="alert"></p>
+            </div>
+          </div>
+
+          <div class="field">
+            <div class="field-top">
+              <label class="field-label" for="testModeToggle">Test mode</label>
+              <span class="pill subtle" id="testModeHintPill">short runs</span>
+            </div>
+            <div class="field-inline">
+              <label class="switch">
+                <input type="checkbox" id="testModeToggle" aria-describedby="testModeHelp">
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-label">Short Pomodoro cycles for debugging</span>
+              </label>
+              <button id="testSoundBtn" class="ghost-btn" type="button">Test sound</button>
+            </div>
+            <p id="testModeHelp" class="field-hint">Enables second-long sessions; badge appears when active.</p>
+          </div>
+        </section>
+
+        <section class="settings-card">
+          <div class="card-head">
+            <p class="eyebrow">Audio & data</p>
+            <h3>Signals & safety</h3>
+          </div>
+
+          <div class="field">
+            <div class="field-top">
+              <label class="field-label" for="volumeSlider">Sound volume</label>
+            </div>
+            <div class="field-inline wrap">
+              <input type="range" id="volumeSlider" min="0" max="100" value="100" class="slider" aria-describedby="volumeHelp">
+              <span id="volumeValue" class="value-chip">100%</span>
+            </div>
+            <p id="volumeHelp" class="field-hint">Controls completion and confetti sounds.</p>
+          </div>
+
+          <div class="field">
+            <div class="field-top">
+              <label class="field-label" for="importFile">Data control</label>
+            </div>
+            <div class="field-inline wrap">
+              <button id="exportBtn" class="neutral-btn" type="button">Export data</button>
+              <button id="importBtn" class="primary-btn" type="button" aria-describedby="importHelp" aria-controls="importFile">Import data</button>
+              <button id="undoImportBtn" class="ghost-btn" type="button" disabled>Undo last import</button>
+            </div>
+            <input type="file" id="importFile" accept=".json,application/json" class="sr-only" aria-label="Choose a data backup to import">
+            <p id="importHelp" class="field-hint">Merges calendar and settings. Imports append days and keep existing.</p>
+            <p id="importError" class="field-error" role="alert"></p>
+          </div>
+
+          <div class="field">
+            <div class="field-top">
+              <span class="field-label">Rollover lock</span>
+            </div>
+            <div class="field-inline wrap">
+              <button id="unlockFlipBtn" class="link-btn" type="button">Unlock today</button>
+            </div>
+            <p id="unlockHelp" class="field-hint">Temporarily bypass forward/backward flip lock for testing.</p>
+          </div>
+
+          <div class="field">
+            <div class="field-top">
+              <span class="field-label">Prop login</span>
+            </div>
+            <div class="field-inline wrap">
+              <button id="forgetPropLoginBtn" class="ghost-btn" type="button">Forget prop login</button>
+            </div>
+            <p class="field-hint">Clears the saved flag so the login page shows again.</p>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -52,6 +146,18 @@
   <script>
     (function() {
       const SETTINGS_KEY = 'voiled_settings_v1';
+      const CALENDAR_KEY = 'voiled_calendar_v1';
+      const BACKUP_KEY = 'voiled_import_backup_v1';
+      const FLIP_UNLOCK_KEY = 'voiled_flip_unlock_v1';
+      const LAST_ROLLOVER_KEY = 'voiled_last_rollover_v1';
+      const LAST_ROLLOVER_REAL_KEY = 'voiled_last_real_date_v1';
+      const FLIP_LOCK_NOTICE_KEY = 'voiled_flip_lock_notice_v1';
+      const PROP_LOGIN_KEY = 'voiled_prop_login_v2';
+      const LEGACY_LOGIN_KEYS = ['voiled_prop_login_v1'];
+      const MAX_IMPORT_BYTES = 500000; // ~0.5 MB guardrail
+      const DEFAULTS = { volume: 1, overrideDate: null, testMode: false, dayEndTime: '00:00' };
+      const ADMIN_PASSWORD = '123';
+
       const slider = document.getElementById('volumeSlider');
       const valueLabel = document.getElementById('volumeValue');
       const overrideDateInput = document.getElementById('overrideDate');
@@ -62,17 +168,92 @@
       const exportBtn = document.getElementById('exportBtn');
       const importBtn = document.getElementById('importBtn');
       const importFile = document.getElementById('importFile');
-      const FLIP_UNLOCK_KEY = 'voiled_flip_unlock_v1';
-      const LAST_ROLLOVER_KEY = 'voiled_last_rollover_v1';
-      const LAST_ROLLOVER_REAL_KEY = 'voiled_last_real_date_v1';
-      const FLIP_LOCK_NOTICE_KEY = 'voiled_flip_lock_notice_v1';
+      const undoImportBtn = document.getElementById('undoImportBtn');
+      const testSoundBtn = document.getElementById('testSoundBtn');
+      const resetDefaultsBtn = document.getElementById('resetDefaultsBtn');
+      const forgetPropLoginBtn = document.getElementById('forgetPropLoginBtn');
+      const testModeBadge = document.getElementById('testModeBadge');
+      const effectiveDateValue = document.getElementById('effectiveDateValue');
+      const realDateValue = document.getElementById('realDateValue');
+      const dayEndValue = document.getElementById('dayEndValue');
+      const flipStatusValue = document.getElementById('flipStatusValue');
+      const dayEndError = document.getElementById('dayEndError');
+      const overrideError = document.getElementById('overrideError');
+      const dayEndField = document.getElementById('dayEndField');
+      const overrideField = document.getElementById('overrideField');
+      const importError = document.getElementById('importError');
+      let importArmed = false;
+
+      try { window.parent?.postMessage({ type:'nav-actions', actions: [] }, '*'); } catch {}
 
       function realTodayKey() {
         return new Date().toISOString().slice(0, 10);
       }
 
-      // clear nav actions here
-      try { window.parent?.postMessage({ type:'nav-actions', actions: [] }, '*'); } catch {}
+      function compareDateStr(a, b) {
+        const aT = new Date(`${a}T00:00:00`).getTime();
+        const bT = new Date(`${b}T00:00:00`).getTime();
+        if (Number.isNaN(aT) || Number.isNaN(bT)) return 0;
+        if (aT === bT) return 0;
+        return aT < bT ? -1 : 1;
+      }
+
+      function isFlipUnlocked(realIso) {
+        try {
+          const val = localStorage.getItem(FLIP_UNLOCK_KEY);
+          if (val === realIso) return true;
+          if (val && val !== realIso) localStorage.removeItem(FLIP_UNLOCK_KEY);
+        } catch {}
+        return false;
+      }
+
+      function applyFlipLimit(rawIso, realIso) {
+        if (isFlipUnlocked(realIso)) {
+          return { effective: rawIso, limited: false, reason: null };
+        }
+        let lastEffective = null;
+        let lastRealCarry = null;
+        try { lastEffective = localStorage.getItem(LAST_ROLLOVER_KEY); } catch {}
+        try { lastRealCarry = localStorage.getItem(LAST_ROLLOVER_REAL_KEY); } catch {}
+        if (lastEffective && lastRealCarry && lastRealCarry === realIso) {
+          const cmp = compareDateStr(rawIso, lastEffective);
+          if (cmp > 0) return { effective: lastEffective, limited: true, reason: 'forward' };
+          if (cmp < 0) return { effective: lastEffective, limited: true, reason: 'backward' };
+        }
+        return { effective: rawIso, limited: false, reason: null };
+      }
+
+      function normalizeTime(raw) {
+        const match = /^(\d{2}):(\d{2})$/.exec((raw || '').trim());
+        if (!match) return null;
+        const hour = Math.max(0, Math.min(23, Number(match[1]) || 0));
+        const min = Math.max(0, Math.min(59, Number(match[2]) || 0));
+        return `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+      }
+
+      function validateDayEnd(raw) {
+        const normalized = normalizeTime(raw);
+        if (!normalized) return { valid: false, message: 'Enter time as HH:MM (24h).' };
+        return { valid: true, value: normalized, minutes: parseDayEndMinutes(normalized) };
+      }
+
+      function validateOverride(raw) {
+        const trimmed = (raw || '').trim();
+        if (!trimmed) return { valid: true, value: null };
+        const d = new Date(`${trimmed}T00:00:00`);
+        if (Number.isNaN(d.getTime())) return { valid: false, message: 'Enter a valid date or clear it.' };
+        return { valid: true, value: trimmed };
+      }
+
+      function setFieldError(fieldEl, errorEl, inputEl, message) {
+        if (!fieldEl || !errorEl) return;
+        fieldEl.classList.toggle('has-error', !!message);
+        errorEl.textContent = message || '';
+        if (inputEl) {
+          if (message) inputEl.setAttribute('aria-invalid', 'true');
+          else inputEl.removeAttribute('aria-invalid');
+        }
+      }
 
       function loadSettings() {
         try {
@@ -83,17 +264,15 @@
               volume: Math.max(0, Math.min(1, parsed.volume)),
               overrideDate: parsed.overrideDate || null,
               testMode: !!parsed.testMode,
-              dayEndTime: typeof parsed.dayEndTime === 'string' ? parsed.dayEndTime : '00:00'
+              dayEndTime: normalizeTime(parsed.dayEndTime) || DEFAULTS.dayEndTime
             };
           }
         } catch {}
-        return { volume: 1, overrideDate: null, testMode: false, dayEndTime: '00:00' };
+        return { ...DEFAULTS };
       }
 
       function saveSettings(settings) {
-        try {
-          localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-        } catch {}
+        try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {}
       }
 
       function renderVolume(vol) {
@@ -109,94 +288,149 @@
         return (h * 60) + m;
       }
 
-      function computeEffectiveNow(settings) {
+      function computeBaseEffective(settings) {
         const iso = settings.overrideDate;
         if (iso && !Number.isNaN(new Date(`${iso}T00:00:00`).getTime())) {
           return iso;
         }
-        const cutoff = parseDayEndMinutes(settings.dayEndTime || '00:00');
+        const cutoff = parseDayEndMinutes(settings.dayEndTime || DEFAULTS.dayEndTime);
         const now = new Date();
         const minutesNow = (now.getHours() * 60) + now.getMinutes();
         const base = minutesNow < cutoff ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : now;
         return base.toISOString().slice(0, 10);
       }
 
-      const current = loadSettings();
-      renderVolume(current.volume);
-      if (overrideDateInput && current.overrideDate) {
-        overrideDateInput.value = current.overrideDate;
+      function computeEffectiveToday(settings) {
+        const raw = computeBaseEffective(settings);
+        const real = realTodayKey();
+        const applied = settings.overrideDate ? { effective: raw, limited: false, reason: null } : applyFlipLimit(raw, real);
+        return { ...applied, real };
       }
-      if (testModeToggle) testModeToggle.checked = !!current.testMode;
-      if (dayEndInput && current.dayEndTime) {
-        dayEndInput.value = current.dayEndTime;
+
+      function updateTestBadge(isOn) {
+        testModeBadge?.classList.toggle('hidden', !isOn);
+        testModeBadge?.classList.toggle('active', isOn);
+      }
+
+      function renderStatus(settings = loadSettings()) {
+        const { effective, limited, reason, real } = computeEffectiveToday(settings);
+        if (effectiveDateValue) effectiveDateValue.textContent = effective || '--';
+        if (realDateValue) realDateValue.textContent = real;
+        if (dayEndValue) dayEndValue.textContent = settings.dayEndTime || DEFAULTS.dayEndTime;
+
+        const unlocked = isFlipUnlocked(real);
+        if (flipStatusValue) {
+          flipStatusValue.textContent = unlocked ? 'Unlocked today' : (limited ? `Locked (${reason === 'forward' ? 'blocks forward' : 'blocks backward'})` : 'Locked (auto)');
+          flipStatusValue.classList.toggle('pill-positive', unlocked);
+          flipStatusValue.classList.toggle('pill-danger', limited && !unlocked);
+        }
+      }
+
+      function hydrate() {
+        const settings = loadSettings();
+        renderVolume(settings.volume);
+        if (overrideDateInput) overrideDateInput.value = settings.overrideDate || '';
+        if (testModeToggle) testModeToggle.checked = !!settings.testMode;
+        if (dayEndInput) dayEndInput.value = settings.dayEndTime || DEFAULTS.dayEndTime;
+        setFieldError(dayEndField, dayEndError, dayEndInput, '');
+        setFieldError(overrideField, overrideError, overrideDateInput, '');
+        updateTestBadge(settings.testMode);
+        renderStatus(settings);
+        toggleUndoButton();
+      }
+
+      function persistSettings(patch) {
+        const merged = { ...loadSettings(), ...patch };
+        merged.dayEndTime = normalizeTime(merged.dayEndTime) || DEFAULTS.dayEndTime;
+        saveSettings(merged);
+        return merged;
+      }
+
+      function maybeSyncUnlockedRollover(settings) {
+        try {
+          const real = realTodayKey();
+          if (localStorage.getItem(FLIP_UNLOCK_KEY) === real) {
+            const eff = computeBaseEffective(settings);
+            localStorage.setItem(LAST_ROLLOVER_KEY, eff);
+            localStorage.setItem(LAST_ROLLOVER_REAL_KEY, real);
+            localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
+          }
+        } catch {}
+      }
+
+      function toggleUndoButton() {
+        const backup = loadBackup();
+        undoImportBtn?.toggleAttribute('disabled', !backup);
+      }
+
+      function loadBackup() {
+        try {
+          const raw = localStorage.getItem(BACKUP_KEY);
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch {
+          return null;
+        }
+      }
+
+      function setImportError(msg) {
+        if (importError) importError.textContent = msg || '';
+      }
+
+      function clearPropLoginFlag() {
+        [PROP_LOGIN_KEY, ...LEGACY_LOGIN_KEYS].forEach(key => {
+          try { localStorage.removeItem(key); } catch {}
+        });
       }
 
       slider?.addEventListener('input', (e) => {
         const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
         const vol = val / 100;
-        const settings = loadSettings();
-        settings.volume = vol;
-        settings.overrideDate = overrideDateInput?.value || null;
-        settings.testMode = testModeToggle?.checked || false;
-        settings.dayEndTime = dayEndInput?.value || '00:00';
-        saveSettings(settings);
+        const settings = persistSettings({ volume: vol });
         renderVolume(vol);
+        renderStatus(settings);
       });
 
       overrideDateInput?.addEventListener('change', (e) => {
-        const raw = (e.target.value || '').trim();
-        const settings = loadSettings();
-        settings.overrideDate = raw || null;
-        settings.dayEndTime = dayEndInput?.value || settings.dayEndTime || '00:00';
-        saveSettings(settings);
-        // keep rollover markers aligned if unlocked today
-        try {
-          const real = realTodayKey();
-          if (localStorage.getItem(FLIP_UNLOCK_KEY) === real) {
-            const eff = computeEffectiveNow(settings);
-            localStorage.setItem(LAST_ROLLOVER_KEY, eff);
-            localStorage.setItem(LAST_ROLLOVER_REAL_KEY, real);
-            localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
-          }
-        } catch {}
+        const validation = validateOverride(e.target.value);
+        if (!validation.valid) {
+          setFieldError(overrideField, overrideError, overrideDateInput, validation.message);
+          return;
+        }
+        setFieldError(overrideField, overrideError, overrideDateInput, '');
+        const settings = persistSettings({ overrideDate: validation.value });
+        maybeSyncUnlockedRollover(settings);
+        renderStatus(settings);
       });
 
       clearOverrideBtn?.addEventListener('click', () => {
-        const settings = loadSettings();
-        settings.overrideDate = null;
-        settings.dayEndTime = dayEndInput?.value || settings.dayEndTime || '00:00';
-        saveSettings(settings);
+        const settings = persistSettings({ overrideDate: null });
         if (overrideDateInput) overrideDateInput.value = '';
-        try {
-          const real = realTodayKey();
-          if (localStorage.getItem(FLIP_UNLOCK_KEY) === real) {
-            const eff = computeEffectiveNow(settings);
-            localStorage.setItem(LAST_ROLLOVER_KEY, eff);
-            localStorage.setItem(LAST_ROLLOVER_REAL_KEY, real);
-            localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
-          }
-        } catch {}
+        setFieldError(overrideField, overrideError, overrideDateInput, '');
+        maybeSyncUnlockedRollover(settings);
+        renderStatus(settings);
       });
 
       testModeToggle?.addEventListener('change', () => {
-        const settings = loadSettings();
-        settings.testMode = !!testModeToggle.checked;
-        settings.dayEndTime = dayEndInput?.value || settings.dayEndTime || '00:00';
-        saveSettings(settings);
+        const settings = persistSettings({ testMode: !!testModeToggle.checked });
+        updateTestBadge(settings.testMode);
+        renderStatus(settings);
       });
 
       dayEndInput?.addEventListener('change', async () => {
-        const settings = loadSettings();
-        settings.dayEndTime = dayEndInput.value || '00:00';
-        saveSettings(settings);
+        const validation = validateDayEnd(dayEndInput.value);
+        if (!validation.valid) {
+          setFieldError(dayEndField, dayEndError, dayEndInput, validation.message);
+          return;
+        }
+        setFieldError(dayEndField, dayEndError, dayEndInput, '');
+        const settings = persistSettings({ dayEndTime: validation.value });
+        maybeSyncUnlockedRollover(settings);
+        renderStatus(settings);
         try {
           const real = realTodayKey();
           if (localStorage.getItem(FLIP_UNLOCK_KEY) === real) {
-            const eff = computeEffectiveNow(settings);
-            localStorage.setItem(LAST_ROLLOVER_KEY, eff);
-            localStorage.setItem(LAST_ROLLOVER_REAL_KEY, real);
-            localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
-            await uiAlert(`Day end updated. Effective day is now ${eff}.`, {
+            await uiAlert(`Day end updated. Effective day is now ${computeBaseEffective(settings)}.`, {
               title: 'Day end updated',
               tone: 'success',
               confirmText: 'Nice'
@@ -205,16 +439,43 @@
         } catch {}
       });
 
+      async function requireAdminPassword(action) {
+        const input = await uiPrompt(`Enter admin password to ${action} (hint: 123)`, {
+          title: 'Admin check',
+          confirmText: 'Continue',
+          cancelText: 'Cancel'
+        });
+        if (input === null || input === undefined) return false;
+        if ((input || '').trim() !== ADMIN_PASSWORD) {
+          await uiAlert('Incorrect password.', { title: 'Access denied', tone: 'danger' });
+          return false;
+        }
+        return true;
+      }
+
+      async function confirmRiskyAction(title, message, confirmText = 'Continue') {
+        return uiConfirm(message, { title, tone: 'danger', confirmText, cancelText: 'Cancel' });
+      }
+
       unlockFlipBtn?.addEventListener('click', async () => {
         const settings = loadSettings();
+        if (!validateDayEnd(settings.dayEndTime).valid) {
+          setFieldError(dayEndField, dayEndError, dayEndInput, 'Fix the cutoff time first.');
+          return;
+        }
+        const proceed = await confirmRiskyAction('Unlock today', 'Unlocking bypasses flip limits for today. Continue?');
+        if (!proceed) return;
+        const authed = await requireAdminPassword('unlock today');
+        if (!authed) return;
         const realToday = realTodayKey();
-        const eff = computeEffectiveNow(settings);
+        const eff = computeBaseEffective(settings);
         try {
           localStorage.setItem(FLIP_UNLOCK_KEY, realToday);
           localStorage.setItem(LAST_ROLLOVER_KEY, eff);
           localStorage.setItem(LAST_ROLLOVER_REAL_KEY, realToday);
           localStorage.removeItem(FLIP_LOCK_NOTICE_KEY);
         } catch {}
+        renderStatus(settings);
         await uiAlert(`Rollover limit unlocked for today. Effective day set to ${eff}. Use for testing only.`, {
           title: 'Limit unlocked',
           tone: 'danger',
@@ -222,9 +483,45 @@
         });
       });
 
+      forgetPropLoginBtn?.addEventListener('click', async () => {
+        const confirmed = await uiConfirm('Clear the saved prop login so the gate shows again?', {
+          title: 'Forget prop login',
+          confirmText: 'Forget',
+          tone: 'danger'
+        });
+        if (!confirmed) return;
+        clearPropLoginFlag();
+        try { window.parent?.postMessage({ type: 'prop-logout' }, '*'); } catch {}
+        await uiAlert('Prop login cleared. Next load will start at the login page.', {
+          title: 'Cleared',
+          tone: 'info',
+          confirmText: 'OK'
+        });
+      });
+
+      testSoundBtn?.addEventListener('click', () => {
+        try {
+          const audio = new Audio('compleation.mp3');
+          audio.volume = loadSettings().volume ?? 1;
+          audio.play().catch(() => {});
+        } catch {}
+      });
+
+      resetDefaultsBtn?.addEventListener('click', async () => {
+        const confirmed = await uiConfirm('Reset all settings back to defaults?', {
+          title: 'Reset defaults',
+          confirmText: 'Reset',
+          tone: 'danger'
+        });
+        if (!confirmed) return;
+        saveSettings({ ...DEFAULTS });
+        hydrate();
+        await uiAlert('Settings restored to defaults.', { title: 'Reset complete', tone: 'success' });
+      });
+
       exportBtn?.addEventListener('click', async () => {
         try {
-          const calendarRaw = localStorage.getItem('voiled_calendar_v1') || '{}';
+          const calendarRaw = localStorage.getItem(CALENDAR_KEY) || '{}';
           const settingsRaw = localStorage.getItem(SETTINGS_KEY) || '{}';
           const payload = { calendar: JSON.parse(calendarRaw || '{}'), settings: JSON.parse(settingsRaw || '{}') };
           const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -242,44 +539,160 @@
         }
       });
 
-      importBtn?.addEventListener('click', () => {
+      importBtn?.addEventListener('click', async () => {
+        const proceed = await confirmRiskyAction('Import data', 'Import merges with existing data. Continue to choose a file?', 'Choose file');
+        if (!proceed) return;
+        const authed = await requireAdminPassword('import data');
+        if (!authed) return;
+        importArmed = true;
         importFile?.click();
+      });
+
+      function taskKey(task) {
+        return (task?.sourceTaskId || task?.text || '').trim().toLowerCase();
+      }
+
+      function mergeTasks(existingTasks = [], incomingTasks = []) {
+        const seen = new Set();
+        existingTasks.forEach(t => {
+          const key = taskKey(t);
+          if (key) seen.add(key);
+        });
+        const additions = incomingTasks.filter(t => {
+          const key = taskKey(t);
+          if (!key) return true;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        return [...existingTasks, ...additions];
+      }
+
+      function summarizeImport(existing, incoming) {
+        const incomingDays = Object.keys(incoming || {});
+        const overlaps = incomingDays.filter(d => existing?.days?.[d]);
+        const incomingTasksTotal = incomingDays.reduce((sum, d) => sum + ((incoming?.[d]?.tasks || []).length), 0);
+        const duplicateTaskTotal = overlaps.reduce((sum, d) => {
+          const existingTasks = existing.days[d]?.tasks || [];
+          const existingKeys = new Set(existingTasks.map(taskKey));
+          const inc = incoming?.[d]?.tasks || [];
+          return sum + inc.filter(t => existingKeys.has(taskKey(t))).length;
+        }, 0);
+        return {
+          incomingDays: incomingDays.length,
+          newDays: incomingDays.length - overlaps.length,
+          overlaps: overlaps.length,
+          incomingTasksTotal,
+          duplicateTaskTotal
+        };
+      }
+
+      function persistBackup(calendar, settings) {
+        try {
+          localStorage.setItem(BACKUP_KEY, JSON.stringify({ calendar, settings }));
+        } catch {}
+      }
+
+      undoImportBtn?.addEventListener('click', async () => {
+        const backup = loadBackup();
+        if (!backup) {
+          await uiAlert('No import backup available.', { title: 'Nothing to undo', tone: 'info' });
+          return;
+        }
+        const confirmed = await uiConfirm('Restore data from the last import backup?', {
+          title: 'Undo import',
+          confirmText: 'Restore'
+        });
+        if (!confirmed) return;
+        try {
+          if (backup.calendar) localStorage.setItem(CALENDAR_KEY, JSON.stringify(backup.calendar));
+          if (backup.settings) saveSettings({ ...loadSettings(), ...backup.settings });
+          await uiAlert('Previous data restored.', { title: 'Undo complete', tone: 'success' });
+          localStorage.removeItem(BACKUP_KEY);
+          renderStatus();
+          toggleUndoButton();
+        } catch {
+          await uiAlert('Undo failed.', { title: 'Undo error', tone: 'danger' });
+        }
       });
 
       importFile?.addEventListener('change', (e) => {
         const file = e.target.files?.[0];
-        if (!file) return;
+        setImportError('');
+        if (!file) { importArmed = false; return; }
+        if (!importArmed) {
+          e.target.value = '';
+          return;
+        }
+        importArmed = false;
+        if (file.size > MAX_IMPORT_BYTES) {
+          setImportError('File is too large. Please use a smaller export.');
+          e.target.value = '';
+          return;
+        }
         const reader = new FileReader();
         reader.onload = async () => {
           try {
             const parsed = JSON.parse(reader.result);
             const incomingCalendar = parsed?.calendar?.days || {};
-            const existingRaw = localStorage.getItem('voiled_calendar_v1');
+            const existingRaw = localStorage.getItem(CALENDAR_KEY);
             const existing = existingRaw ? JSON.parse(existingRaw) : { days: {} };
+            const summary = summarizeImport(existing, incomingCalendar);
+            const preview = [
+              `Days in file: ${summary.incomingDays}`,
+              `New days: ${summary.newDays}`,
+              `Existing days that will merge: ${summary.overlaps}`,
+              `Incoming tasks: ${summary.incomingTasksTotal}`,
+              `Matching task texts in existing days: ${summary.duplicateTaskTotal}`,
+              `Settings keys in file: ${Object.keys(parsed?.settings || {}).length}`
+            ].join('\n');
+            const confirmImport = await uiConfirm(`${preview}\n\nApply import?`, {
+              title: 'Preview import',
+              confirmText: 'Apply import',
+              tone: summary.overlaps ? 'danger' : 'info'
+            });
+            if (!confirmImport) {
+              e.target.value = '';
+              return;
+            }
+
+            persistBackup(existing, loadSettings());
+
             Object.entries(incomingCalendar).forEach(([date, val]) => {
-              if (!existing.days[date]) existing.days[date] = val;
-              else {
+              if (!existing.days[date]) {
+                existing.days[date] = val;
+              } else {
                 const merged = existing.days[date];
-                merged.tasks = [...(merged.tasks || []), ...(val.tasks || [])];
+                merged.tasks = mergeTasks(merged.tasks || [], val.tasks || []);
                 merged.focusCount = Math.max(merged.focusCount || 0, val.focusCount || 0);
                 merged.planned = merged.planned || val.planned || false;
               }
             });
-            localStorage.setItem('voiled_calendar_v1', JSON.stringify(existing));
+
+            localStorage.setItem(CALENDAR_KEY, JSON.stringify(existing));
             if (parsed?.settings) {
-              const current = loadSettings();
-              const newSettings = { ...current, ...parsed.settings };
+              const newSettings = { ...loadSettings(), ...parsed.settings };
               saveSettings(newSettings);
             }
-            await uiAlert('Import complete. Reload views to see updates.', { title: 'Import finished', tone: 'success' });
+            await uiAlert('Import complete. You can undo from this page.', { title: 'Import finished', tone: 'success' });
+            renderStatus();
+            toggleUndoButton();
           } catch (err) {
+            console.error(err);
+            setImportError('Import failed. Invalid file.');
             await uiAlert('Import failed. Invalid file.', { title: 'Import error', tone: 'danger' });
           } finally {
             e.target.value = '';
           }
         };
+        reader.onerror = async () => {
+          setImportError('Could not read file.');
+          await uiAlert('Could not read file.', { title: 'Import error', tone: 'danger' });
+        };
         reader.readAsText(file);
       });
+
+      hydrate();
     })();
   </script>
 </body>

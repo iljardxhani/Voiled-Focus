@@ -8,7 +8,10 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 
-<body>
+<body class="login-blocked">
+  <div id="loginOverlay" class="login-overlay">
+    <iframe id="loginOverlayFrame" src="login.html" title="Login" loading="eager"></iframe>
+  </div>
   <div class="app-shell">
     <!-- TOP NAV (small horizontal) -->
     <header class="top-nav" id="topNav" role="banner" aria-hidden="false">
@@ -43,7 +46,7 @@
     <main class="main-area">
       <div class="content">
         <div class="display-area">
-          <iframe id="contentFrame" src="day.html" title="Content" class="content-frame" aria-live="polite"></iframe>
+          <iframe id="contentFrame" src="about:blank" title="Content" class="content-frame" aria-live="polite"></iframe>
         </div>
       </div><!-- /.content -->
     </main>
@@ -52,19 +55,63 @@
   <script>
     (function() {
       const frame = document.getElementById('contentFrame');
+      const loginOverlay = document.getElementById('loginOverlay');
+      const loginOverlayFrame = document.getElementById('loginOverlayFrame');
       const navItems = document.querySelectorAll('.left-nav .nav-item');
       const navActions = document.getElementById('navActions');
+      const copyBtn = document.getElementById('copyBtn');
       const backBtn = document.getElementById('globalBackBtn');
       const calendarNav = Array.from(navItems).find(b => b.dataset.target === 'calendar.html');
+      const DEFAULT_PAGE = 'day.html';
+      const PROP_LOGIN_KEY = 'voiled_prop_login_v2';
+      const LEGACY_LOGIN_KEYS = ['voiled_prop_login_v1'];
       let currentBackAction = null;
 
+      function clearLegacyLogin() {
+        LEGACY_LOGIN_KEYS.forEach(key => {
+          try { localStorage.removeItem(key); } catch {}
+        });
+      }
+
+      function readLoginState() {
+        try {
+          const raw = localStorage.getItem(PROP_LOGIN_KEY);
+          const parsed = raw ? JSON.parse(raw) : null;
+          if (parsed && parsed.loggedIn) return parsed;
+        } catch {}
+        return null;
+      }
+
+      function isLoggedIn() {
+        return !!readLoginState();
+      }
+
+      function setLoggedIn(state) {
+        try {
+          localStorage.setItem(PROP_LOGIN_KEY, JSON.stringify({
+            loggedIn: true,
+            email: state?.email || '',
+            ts: Date.now()
+          }));
+        } catch {}
+      }
+
+      function clearLoggedIn() {
+        try { localStorage.removeItem(PROP_LOGIN_KEY); } catch {}
+      }
+
       function setActive(btn) {
+        if (!btn) return;
         navItems.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
       }
 
       navItems.forEach(btn => {
         btn.addEventListener('click', () => {
+          if (!isLoggedIn()) {
+            goToLogin();
+            return;
+          }
           const target = btn.dataset.target;
           if (target && frame) {
             frame.src = target;
@@ -135,6 +182,11 @@
 
       function renderNavActions(actions = []) {
         if (!navActions) return;
+        if (!isLoggedIn()) {
+          navActions.innerHTML = '';
+          setBackAction(null);
+          return;
+        }
         const backCandidate = (actions || []).find(action => isBackAction(action.id, action.label || action.id)) || null;
         setBackAction(backCandidate);
         const filtered = (actions || []).filter(action => !isBackAction(action.id, action.label || action.id));
@@ -168,12 +220,46 @@
         });
       }
 
+      function goToDefault() {
+        if (!frame) return;
+        frame.src = DEFAULT_PAGE;
+        const dayNav = Array.from(navItems).find(b => b.dataset.target === DEFAULT_PAGE) || navItems[0];
+        setActive(dayNav);
+      }
+
+      function goToLogin() {
+        if (loginOverlay) loginOverlay.classList.remove('hidden');
+        if (loginOverlayFrame) loginOverlayFrame.src = 'login.html';
+        document.body.classList.add('login-blocked');
+        navItems.forEach(b => b.classList.remove('active'));
+      }
+
+      function enforceGate() {
+        clearLegacyLogin();
+        if (isLoggedIn()) {
+          goToDefault();
+          document.body.classList.remove('login-blocked');
+          if (loginOverlay) loginOverlay.classList.add('hidden');
+        } else {
+          goToLogin();
+          renderNavActions([]);
+        }
+      }
+
       window.addEventListener('message', (event) => {
-        const { type, actions } = event.data || {};
+        const { type, actions, email } = event.data || {};
         if (type === 'nav-actions') {
           renderNavActions(actions);
+        } else if (type === 'prop-login-success') {
+          setLoggedIn({ email });
+          enforceGate();
+        } else if (type === 'prop-logout') {
+          clearLoggedIn();
+          enforceGate();
         }
       });
+
+      enforceGate();
     })();
   </script>
 </body>
