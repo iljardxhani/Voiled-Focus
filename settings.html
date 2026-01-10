@@ -491,8 +491,9 @@
         });
         if (!confirmed) return;
         clearPropLoginFlag();
+        try { await fetch('/api/logout', { method: 'POST', credentials: 'include' }); } catch {}
         try { window.parent?.postMessage({ type: 'prop-logout' }, '*'); } catch {}
-        await uiAlert('Prop login cleared. Next load will start at the login page.', {
+        await uiAlert('Session cleared. Next load will start at the login page.', {
           title: 'Cleared',
           tone: 'info',
           confirmText: 'OK'

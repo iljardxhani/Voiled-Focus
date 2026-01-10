@@ -107,53 +107,35 @@
 
   <script>
     (function() {
-      const PROP_LOGIN_KEY = 'voiled_prop_login_v2';
-      const LEGACY_LOGIN_KEYS = ['voiled_prop_login_v1'];
       const form = document.getElementById('propLoginForm');
       const status = document.getElementById('propLoginStatus');
       const resetBtn = document.querySelector('.subtle-link');
       const emailEl = document.getElementById('loginEmail');
       const passEl = document.getElementById('loginPass');
+      const googleBtn = document.querySelector('.login-btn-google');
 
-      function clearLegacy() {
-        LEGACY_LOGIN_KEYS.forEach(key => {
-          try { localStorage.removeItem(key); } catch {}
-        });
-      }
-
-      function markLoggedIn(email) {
-        clearLegacy();
-        const payload = { loggedIn: true, email: email || '', ts: Date.now() };
-        try { localStorage.setItem(PROP_LOGIN_KEY, JSON.stringify(payload)); } catch {}
-        try { window.parent?.postMessage({ type: 'prop-login-success', email }, '*'); } catch {}
-      }
-
-      function clearLogin() {
-        try { localStorage.removeItem(PROP_LOGIN_KEY); } catch {}
-        try { window.parent?.postMessage({ type: 'prop-logout' }, '*'); } catch {}
-      }
+      googleBtn?.addEventListener('click', () => {
+        window.location.href = '/api/auth/google';
+      });
 
       form?.addEventListener('submit', (event) => {
         event.preventDefault();
-        const email = (emailEl?.value || '').trim();
-        const message = email
-          ? `Prop login armed for ${email}. We will wire real auth next.`
-          : 'Prop login armed. Real auth wiring soon.';
-        markLoggedIn(email);
         if (status) {
-          status.textContent = message;
+          status.textContent = 'Redirecting to Google for sign in...';
           status.classList.add('visible');
         }
+        window.location.href = '/api/auth/google';
       });
 
       resetBtn?.addEventListener('click', () => {
         if (emailEl) emailEl.value = '';
         if (passEl) passEl.value = '';
         if (status) {
-          status.textContent = 'Prop mode reset. Ready for fresh credentials.';
+          status.textContent = 'Session cleared. Ready to sign in again.';
           status.classList.add('visible');
         }
-        clearLogin();
+        try { window.parent?.postMessage({ type: 'prop-logout' }, '*'); } catch {}
+        fetch('/api/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
       });
     })();
   </script>
