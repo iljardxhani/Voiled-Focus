@@ -4,6 +4,7 @@
     resolve: null,
     mode: null,
     lastFocus: null,
+    hideTimer: null, // tracks pending hide so back-to-back dialogs don't auto-close
   };
 
   const ICONS = {
@@ -99,12 +100,14 @@
 
   function finish(result) {
     if (!state.overlay) return;
+    clearTimeout(state.hideTimer);
     state.overlay.classList.remove('visible');
     state.overlay.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('dialog-open');
-    setTimeout(() => {
+    state.hideTimer = setTimeout(() => {
       state.overlay.style.display = 'none';
       state.card.classList.remove('danger', 'success');
+      state.hideTimer = null;
     }, 160);
     if (state.resolve) state.resolve(state.mode === 'alert' ? undefined : result);
     state.resolve = null;
@@ -117,6 +120,7 @@
 
   function openDialog(options) {
     ensureDom();
+    clearTimeout(state.hideTimer);
     const {
       mode = 'alert',
       title = 'Heads up',
